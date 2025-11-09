@@ -63,6 +63,21 @@ Apply a consistent filename policy:
 ```
 ````
 
+### Variants and exclusive groups
+
+- Mutually-exclusive variants (e.g., filename policies) share an `exclusive_group`.
+- Declare variants via front matter. Example for filename policies:
+  - `exclusive_group = "filename-policy"`
+  - `default = true` on the default variant (e.g., kebab-case)
+  - Other variants: `-filename-camel`, `-filename-pascal` (same `exclusive_group`).
+- `-filename` can be an alias to the default (kebab) for convenience.
+- Precedence:
+  1. CLI-requested variant (last CLI wins; warn on multiple).
+  2. Else, group default.
+  3. Else, first included variant.
+  4. Conflicting included variants → keep first; warn (CLI still overrides).
+- Ordering/dedup: expand in CLI order with pre-order includes; deduplicate globally; place the chosen group variant where the group first appears.
+
 Example (conceptual):
 
 ````markdown
@@ -117,6 +132,7 @@ archive  = "notes/archive"
   - Example usages:
     - Explicit: `sofia notator run -process -filename -preview`
     - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename`).
+  - Precedence: CLI overrides includes; last CLI variant wins within an exclusive group (emit a warning).
 
 ---
 
@@ -131,10 +147,13 @@ Minimal shape:
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "resolvedSwitches": ["-process", "-rename", "-preview"],
+    "includedSwitches": ["-rename", "-filename"],
+    "resolvedSwitches": ["-process", "-rename", "-filename", "-preview"],
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
-    "sourceFiles": {"-process": "library/notator/switches/process.md"}
+    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename": "library/shared/switches/filename.md"},
+    "selectedGroups": {"filename-policy": "-filename"},
+    "warnings": ["CLI requested -filename-camel overrides included -filename"]
   },
   "next": {"cmd": "notator.run", "args": {"apply": false}}
 }

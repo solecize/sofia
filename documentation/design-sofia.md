@@ -115,6 +115,23 @@ Apply {naming.kebab_case}. Do not invent content.
 ```
 ````
 
+### Variants and exclusive groups
+
+- Some concerns are mutually exclusive and come in variants (e.g., filename policies).
+- Use front matter to declare a category with variants:
+  - `exclusive_group = "filename-policy"`
+  - `default = true` on the default variant (e.g., kebab-case)
+  - Provide other variants, e.g., `-filename-camel`, `-filename-pascal` with the same `exclusive_group`.
+- Aliases can map convenience flags to variants (e.g., `-filename` → kebab by default).
+- Precedence and selection:
+  1. CLI-requested variant in the group (if multiple, last CLI wins; emit a warning).
+  2. If none requested, use the group’s `default = true` variant.
+  3. If a parent includes a variant but no default exists, use that included variant.
+  4. If multiple included variants conflict, keep the first; emit a warning (CLI still overrides).
+- Ordering and dedup:
+  - Expand in CLI order with pre-order includes. Deduplicate globally while preserving the first position where the group was introduced.
+  - Includes and CLI flags are both resolved through the alias map (aliases are valid in either location).
+
 ### Variables files
 - Required: `type = "vars"`, `namespace = "paths"` (or similar).
 - Body: fenced `toml` block with key/values.
@@ -213,11 +230,13 @@ Schema (MVP):
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "resolvedSwitches": ["-process", "-rename", "-preview"],
+    "includedSwitches": ["-rename", "-filename"],
+    "resolvedSwitches": ["-process", "-rename", "-filename", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
-    "sourceFiles": { "-process": "library/notator/switches/process.md" },
-    "warnings": []
+    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename": "library/shared/switches/filename.md" },
+    "selectedGroups": { "filename-policy": "-filename" },
+    "warnings": ["CLI requested -filename-camel overrides included -filename"]
   },
   "next": { "cmd": "notator.run", "args": { "apply": false } }
 }

@@ -3,8 +3,10 @@ tool = "shared"
 type = "switch"
 switch = "-filename"
 help = "Standardize filenames across tools using kebab-case and consistent rules."
-aliases = ["-name", "-filenames"]
+aliases = ["-name", "-filenames", "-filename-kebab"]
 tags = ["naming", "shared", "conventions"]
+exclusive_group = "filename-policy"
+default = true
 version = 1
 id = "shared.filename"
 +++
