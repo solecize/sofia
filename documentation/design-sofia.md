@@ -70,11 +70,17 @@
       - filename-kebab.md
       - filename-camel.md
       - filename-pascal.md
+      - events-ledger.md
+      - report-brief.md
+      - report-verbose.md
+    - report/
+      - templates.md
   - config/
     - defaults.md
   - vars/
     - paths.md
     - naming.md
+    - report.md
   - groups/
     - core.md
 - sessions/
@@ -146,6 +152,17 @@ Apply {naming.kebab_case}. Do not invent content.
 - Extension: default `.{naming.default_extension}` ("md").
 - Collisions: kebab appends `-2`, `-3`, …; camel/pascal append `2`, `3`, …; idempotent (don’t re-append).
 - Filters (shared vars): `filters.ignore_hidden=true`; `filters.ignore_patterns=[".DS_Store","Thumbs.db","~*","*.tmp","*.swp"]`.
+
+### Reporting (events ledger and templates)
+
+- Events ledger: JSON Lines (one object per line) appended during a run with fields:
+  - `ts` (ISO8601), `tool`, `type`, `summary`, `data` (object), `switch`, optional `severity`, optional `id` (idempotency)
+- Templates: `library/shared/report/templates.md` maps `summary_template` and `verbose_template` by event `type`.
+- Report detail (exclusive group: `report-detail`):
+  - `-report-brief` (alias: `-report`) → renders to `{report.dir}/{report.brief_filename}`
+  - `-report-verbose` → renders to `{report.dir}/{report.verbose_filename}`
+- Vars: `library/vars/report.md` defines `dir`, `brief_filename`, `verbose_filename`.
+- Optional shared switch: `-events-ledger` instructs emitting events consistently; include it where core actions occur.
 
 ### Variables files
 - Required: `type = "vars"`, `namespace = "paths"` (or similar).
@@ -245,12 +262,16 @@ Schema (MVP):
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename-kebab"],
-    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-preview"],
+    "includedSwitches": ["-rename", "-filename-kebab", "-report-brief"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-report-brief", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
-    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md" },
-    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" } },
+    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-report-brief": "library/shared/switches/report-brief.md" },
+    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" }, "report-detail": { "chosen": "-report-brief", "source": "cli" } },
+    "events": [
+      { "ts": "2025-11-09T18:45:12Z", "tool": "notator", "type": "rename", "summary": "renamed and converted character.interaction.doc to character-interaction.md", "data": { "from": "character.interaction.doc", "to": "character-interaction.md", "extChanged": true }, "switch": "-rename" }
+    ],
+    "report": { "kind": "brief", "intendedPath": "reports/brief.md" },
     "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": { "cmd": "notator.run", "args": { "apply": false } }

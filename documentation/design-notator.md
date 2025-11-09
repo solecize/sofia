@@ -25,6 +25,12 @@
 - `-filename` (alias to `-filename-kebab`) (library/shared/switches/filename-kebab.md)
   - Global shared switch; standardize filenames across tools (kebab-case, collision rule).
   - Can be used directly (`sofia notator run -process -filename-kebab` or alias `-filename`) or included by `-rename`.
+- `-report-brief` (alias `-report`) (library/shared/switches/report-brief.md)
+  - Render a brief Markdown report from the events ledger (summary lines) to `{report.dir}/{report.brief_filename}`.
+- `-report-verbose` (library/shared/switches/report-verbose.md)
+  - Render a verbose Markdown report with detailed lines to `{report.dir}/{report.verbose_filename}`.
+- `-events-ledger` (library/shared/switches/events-ledger.md)
+  - Maintain a JSONL events ledger during runs; other switches emit typed events.
 
 ---
 
@@ -61,6 +67,14 @@ Apply a consistent filename policy:
 - Output only the filename string.
 ```
 ````
+
+### Reporting (Notator)
+
+- Notator switches that act (e.g., `-rename`) emit events to the shared JSONL ledger.
+- Reporting switches render the ledger using shared templates:
+  - Templates: `library/shared/report/templates.md` (`summary_template`, `verbose_template`).
+  - Vars: `library/vars/report.md` (`dir`, `brief_filename`, `verbose_filename`).
+  - Exclusive group: `report-detail` with `-report-brief` (alias `-report`) and `-report-verbose`.
 
 ### Variants and exclusive groups
 
@@ -129,8 +143,8 @@ archive  = "notes/archive"
   - Default `--dry-run` (no side effects in MVP).
   - Output composed prompts + echo JSON; write session manifest JSON.
   - Example usages:
-    - Explicit: `sofia notator run -process -filename-kebab -preview` (or alias `-filename`)
-    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename-kebab`).
+    - Explicit: `sofia notator run -process -filename-kebab -report -preview`
+    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename-kebab`; add `-report` to render a brief report)
   - Precedence: CLI overrides includes; last CLI variant wins within an exclusive group (emit a warning).
 
 ---
@@ -146,12 +160,16 @@ Minimal shape:
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename-kebab"],
-    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-preview"],
+    "includedSwitches": ["-rename", "-filename-kebab", "-report-brief"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-report-brief", "-preview"],
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
-    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md"},
-    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}},
+    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-report-brief": "library/shared/switches/report-brief.md"},
+    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}, "report-detail": {"chosen": "-report-brief", "source": "cli"}},
+    "events": [
+      {"ts":"2025-11-09T18:45:12Z","tool":"notator","type":"rename","summary":"renamed and converted character.interaction.doc to character-interaction.md","data":{"from":"character.interaction.doc","to":"character-interaction.md","extChanged":true},"switch":"-rename"}
+    ],
+    "report": {"kind":"brief","intendedPath":"reports/brief.md"},
     "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": {"cmd": "notator.run", "args": {"apply": false}}
