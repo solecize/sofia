@@ -23,3 +23,33 @@ In the above example the {variables} are replaced with the appropriate values fr
 Variables enable users to build robust, repeatable workflows.
 
 You can find more information about Notator in the what-is-notator.md file.
+
+## Switch metadata: TOML front matter
+
+Sofia stores each CLI-style switch in a Markdown file with a TOML front matter block delimited by `+++` on its own line at the start and end of the block. The front matter describes how the switch is registered and used by the CLI and composer.
+
+Example:
+
+```
++++
+tool = "shared"
+type = "switch"
+switch = "-filename"
+help = "Standardize filenames across tools using kebab-case and consistent rules."
+aliases = ["-name", "-filenames"]
+tags = ["naming", "shared", "conventions"]
+version = 1
+id = "shared.filename"
++++
+```
+
+Field meanings:
+
+- **tool**: Logical namespace. `shared` means the switch is reusable across tools (e.g., Notator and others).
+- **type**: Declares the Markdown file’s role. One of `switch`, `vars`, or `group`.
+- **switch**: Canonical CLI flag users can pass (e.g., `-filename`).
+- **help**: Short description shown by `list` commands and docs.
+- **aliases**: Alternate flags that resolve to the same switch.
+- **tags**: Free-form labels for grouping/filtering in docs or UI.
+- **version**: Integer revision for tracking semantic changes over time.
+- **id**: Stable identifier used internally; remains constant even if filenames or flags change.
