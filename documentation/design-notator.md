@@ -152,7 +152,7 @@ Minimal shape:
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
     "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename": "library/shared/switches/filename.md"},
-    "selectedGroups": {"filename-policy": "-filename"},
+    "selectedGroups": {"filename-policy": {"chosen": "-filename", "source": "default"}},
     "warnings": ["CLI requested -filename-camel overrides included -filename"]
   },
   "next": {"cmd": "notator.run", "args": {"apply": false}}

@@ -134,6 +134,16 @@ Apply {naming.kebab_case}. Do not invent content.
   - Expand in CLI order with pre-order includes. Deduplicate globally while preserving the first position where the group was introduced.
   - Includes and CLI flags are both resolved through the alias map (aliases are valid in either location).
 
+### Naming policy details (shared)
+
+- Normalization: ASCII-fold to basic Latin; remove punctuation/symbols; keep digits; trim whitespace.
+- Kebab-case: lowercase tokens joined by `-`; collapse repeated hyphens; trim edges.
+- CamelCase: first token lowercase; subsequent tokens TitleCase; join w/o separators.
+- PascalCase: all tokens TitleCase; join w/o separators.
+- Extension: default `.{naming.default_extension}` ("md").
+- Collisions: kebab appends `-2`, `-3`, …; camel/pascal append `2`, `3`, …; idempotent (don’t re-append).
+- Filters (shared vars): `filters.ignore_hidden=true`; `filters.ignore_patterns=[".DS_Store","Thumbs.db","~*","*.tmp","*.swp"]`.
+
 ### Variables files
 - Required: `type = "vars"`, `namespace = "paths"` (or similar).
 - Body: fenced `toml` block with key/values.
@@ -232,13 +242,13 @@ Schema (MVP):
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename"],
-    "resolvedSwitches": ["-process", "-rename", "-filename", "-preview"],
+    "includedSwitches": ["-rename", "-filename-kebab"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
-    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename": "library/shared/switches/filename.md" },
-    "selectedGroups": { "filename-policy": "-filename" },
-    "warnings": ["CLI requested -filename-camel overrides included -filename"]
+    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename.md" },
+    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" } },
+    "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": { "cmd": "notator.run", "args": { "apply": false } }
 }

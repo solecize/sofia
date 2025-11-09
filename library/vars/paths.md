@@ -1,3 +1,13 @@
 # Vars: paths
 
-Placeholder for path variables such as incoming, preview, wiki, and archive.
++++
+type = "vars"
+namespace = "paths"
++++
+
+```toml
+incoming = "notes/incoming"
+preview  = "notes/preview"
+wiki     = "notes/wiki"
+archive  = "notes/archive"
+```
