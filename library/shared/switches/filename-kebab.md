@@ -1,24 +1,23 @@
 +++
 tool = "shared"
 type = "switch"
-switch = "-filename"
+switch = "-filename-kebab"
 help = "Standardize filenames across tools using kebab-case and consistent rules."
-aliases = ["-name", "-filenames", "-filename-kebab"]
+aliases = ["-filename", "-name", "-filenames"]
 tags = ["naming", "shared", "conventions"]
 exclusive_group = "filename-policy"
-default = true
 version = 1
-id = "shared.filename"
+id = "shared.filename.kebab"
 +++
 
-# Shared Switch: -filename
+# Shared Switch: -filename-kebab
 
 ```notes
 About CLI switches and includes:
 - Use this switch from any tool to apply the same naming rules.
 - Example: `sofia notator run -process -filename`.
 - Switch composition is deterministic. A switch can include others via front matter, e.g.:
-  `includes = ["-filename"]` to reuse this naming policy.
+  `includes = ["-filename-kebab"]` to reuse this naming policy.
 - MVP is prompt-as-output; tools should not perform file I/O. The LLM uses this prompt to decide names.
 ```
 
