@@ -15,12 +15,16 @@
   - Includes: `-rename`.
 - `-rename` (library/notator/switches/rename.md)
   - Rename files using kebab-case based on note topic.
+  - Typically includes `-filename` (shared) to enforce global naming policy.
 - `-preview` (library/notator/switches/preview.md)
   - Annotate output as a dry-run/preview.
 - `-git` (library/notator/shared/git.md)
   - Stage and commit changes using a conventional commit message.
 - `-notify` (library/notator/shared/notify.md)
   - Notify the user with a summary of operations or any conflicts.
+- `-filename` (library/shared/switches/filename.md)
+  - Global shared switch; standardize filenames across tools (kebab-case, collision rule).
+  - Can be used directly (`sofia notator run -process -filename`) or included by `-rename`.
 
 ---
 
@@ -33,6 +37,31 @@
 - Prompt text: first fenced block labeled `prompt`.
 - Variables: referenced as `{namespace.key}`, e.g., `{paths.incoming}`.
 - Includes: deterministic composition via `includes = ["-other-switch"]`.
+
+Shared switch example (`-filename`):
+
+````markdown
++++
+tool = "shared"
+type = "switch"
+switch = "-filename"
+help = "Standardize filenames across tools using kebab-case and consistent rules."
+aliases = ["-name", "-filenames"]
+tags = ["naming", "shared", "conventions"]
+version = 1
+id = "shared.filename"
++++
+
+```prompt
+Apply a consistent filename policy:
+- Use {naming.kebab_case} for all filenames.
+- Derive the base name from the provided title/topic; remove punctuation and symbols.
+- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim edges.
+- Preserve the `.md` extension unless otherwise specified by the calling context.
+- If a collision would occur, append a numeric suffix beginning at `-2`.
+- Output only the filename string.
+```
+````
 
 Example (conceptual):
 
@@ -85,6 +114,9 @@ archive  = "notes/archive"
 - `sofia notator run [switches...] [--dry-run | --apply]`
   - Default `--dry-run` (no side effects in MVP).
   - Output composed prompts + echo JSON; write session manifest JSON.
+  - Example usages:
+    - Explicit: `sofia notator run -process -filename -preview`
+    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename`).
 
 ---
 
@@ -112,6 +144,6 @@ Minimal shape:
 
 ## 7) Acceptance Criteria (MVP)
 
-- `notator list` shows `-process`, `-rename`, `-preview`, `-git`, `-notify` with help and source paths.
+- `notator list` shows `-process`, `-rename`, `-preview`, `-git`, `-notify`, `-filename` with help and source paths.
 - `notator run -process -preview` resolves includes, substitutes variables, emits echo JSON, and writes a `sessions/.../manifest.json`.
 - Errors are actionable (missing switch/include/variable) and reference source files.

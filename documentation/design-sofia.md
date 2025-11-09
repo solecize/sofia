@@ -65,6 +65,9 @@
     - shared/
       - git.md
       - notify.md
+  - shared/
+    - switches/
+      - filename.md
   - vars/
     - paths.md
     - naming.md
@@ -138,7 +141,33 @@ archive  = "notes/archive"
 - Only variables are substituted inside prompt text; prompt composition uses `includes`.
 
 ### Shared prompts
-- Shared “switches” (e.g., `-git`, `-notify`) live alongside switches; referenced via `includes`.
+- Global shared switches (e.g., `-filename`) live under `library/shared/switches` and can be used by all tools.
+- Tool-local shared switches (e.g., `-git`, `-notify` for Notator) live under `library/notator/shared`.
+
+Shared example:
+
+````markdown
++++
+tool = "shared"
+type = "switch"
+switch = "-filename"
+help = "Standardize filenames across tools using kebab-case and consistent rules."
+aliases = ["-name", "-filenames"]
+tags = ["naming", "shared", "conventions"]
+version = 1
+id = "shared.filename"
++++
+
+```prompt
+Apply a consistent filename policy:
+- Use {naming.kebab_case} for all filenames.
+- Derive the base name from the provided title/topic; remove punctuation and symbols.
+- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim edges.
+- Preserve the `.md` extension unless otherwise specified by the calling context.
+- If a collision would occur, append a numeric suffix beginning at `-2`.
+- Output only the filename string.
+```
+````
 
 ---
 
@@ -227,7 +256,7 @@ Schema (MVP):
 
 ## 13) Acceptance Criteria (MVP)
 
-- `sofia notator list` lists `-process`, `-rename`, `-preview`, `-git`, `-notify`.
+- `sofia notator list` lists `-process`, `-rename`, `-preview`, `-git`, `-notify`, `-filename`.
 - `sofia notator run -process -preview` produces:
   - Resolved includes (`-rename`) and variable substitution.
   - Echo JSON block printed to stdout.
