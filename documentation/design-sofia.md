@@ -164,6 +164,25 @@ Apply {naming.kebab_case}. Do not invent content.
 - Vars: `library/vars/report.md` defines `dir`, `brief_filename`, `verbose_filename`.
 - Optional shared switch: `-events-ledger` instructs emitting events consistently; include it where core actions occur.
 
+### Git policy (default auto-commit)
+
+- Exclusive group: `commit-policy`.
+- Variants:
+  - `-git` (default): auto stage and commit changes.
+  - `-no-commit` (alias `-nocommit`): disable commits; still emit non-git events and a `notify` noting commits are disabled.
+- Default granularity: single commit per run.
+- Auto-escalation: if actions structurally transform inputs to outputs (e.g., split/merge, cross-directory renames, or produce multiple derived files), emit two commits instead of one:
+  1. Baseline snapshot: add originals in `{paths.incoming}` and commit with `notator: snapshot incoming before processing`.
+  2. Outputs commit: add changed/new files and commit with `notator: process {N} notes`.
+- If a report is rendered, include it in the outputs commit; message: `notator: add report ({report.kind})` if committed separately.
+- Event shapes:
+  - `git.init`: `{ path }`
+  - `git.add`: `{ paths: [...], count }`
+  - `git.commit`: `{ message, files: [...] }`
+- Echo JSON: record `data.git = { policy: "auto" | "none", source: "tool" | "cli" }` and track `selectedGroups.commit-policy`.
+
+ 
+
 ### Variables files
 - Required: `type = "vars"`, `namespace = "paths"` (or similar).
 - Body: fenced `toml` block with key/values.
@@ -262,16 +281,17 @@ Schema (MVP):
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename-kebab", "-report-brief"],
-    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-report-brief", "-preview"],
+    "includedSwitches": ["-rename", "-filename-kebab", "-git", "-report-brief"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-git", "-report-brief", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
-    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-report-brief": "library/shared/switches/report-brief.md" },
-    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" }, "report-detail": { "chosen": "-report-brief", "source": "cli" } },
+    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-git": "library/notator/shared/git.md", "-report-brief": "library/shared/switches/report-brief.md" },
+    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" }, "report-detail": { "chosen": "-report-brief", "source": "cli" }, "commit-policy": { "chosen": "-git", "source": "defaults" } },
     "events": [
       { "ts": "2025-11-09T18:45:12Z", "tool": "notator", "type": "rename", "summary": "renamed and converted character.interaction.doc to character-interaction.md", "data": { "from": "character.interaction.doc", "to": "character-interaction.md", "extChanged": true }, "switch": "-rename" }
     ],
     "report": { "kind": "brief", "intendedPath": "reports/brief.md" },
+    "git": { "policy": "auto", "source": "defaults" },
     "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": { "cmd": "notator.run", "args": { "apply": false } }

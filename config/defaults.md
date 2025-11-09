@@ -12,7 +12,12 @@ name = "Sofia global defaults"
 # Note: "-filename" remains an alias to "-filename-kebab" for CLI ergonomics
 default = "-filename-kebab"
 
+[groups.commit-policy]
+# Default commit behavior for tools (auto stage + commit)
+default = "-git"
+
 # Optional per-tool defaults (uncomment to specialize)
 # [tools.notator.groups.filename-policy]
 # default = "-filename-kebab"
-```
+# [tools.notator.groups.commit-policy]
+# default = "-git"

@@ -31,6 +31,8 @@
   - Render a verbose Markdown report with detailed lines to `{report.dir}/{report.verbose_filename}`.
 - `-events-ledger` (library/shared/switches/events-ledger.md)
   - Maintain a JSONL events ledger during runs; other switches emit typed events.
+ - `-no-commit` (alias `-nocommit`) (design-only in MVP)
+   - Disable auto commits; when present, do not emit `git.add`/`git.commit` events and emit a `notify` that commits are disabled.
 
 ---
 
@@ -76,6 +78,19 @@ Apply a consistent filename policy:
   - Vars: `library/vars/report.md` (`dir`, `brief_filename`, `verbose_filename`).
   - Exclusive group: `report-detail` with `-report-brief` (alias `-report`) and `-report-verbose`.
 
+### Git policy (default auto-commit)
+
+- Exclusive group `commit-policy` with variants:
+  - `-git` (default): auto stage and commit changes at defined boundaries.
+  - `-no-commit` (alias `-nocommit`): disable commits for this run; still emit normal non-git events and a `notify` about disabled commits.
+- Default behavior: single commit per run.
+- Auto-escalation: when actions structurally transform inputs to outputs (e.g., splitting one file into many), use two commits:
+  1. Baseline snapshot of originals in `{paths.incoming}` with message `notator: snapshot incoming before processing`.
+  2. Outputs commit after renames/creates with message `notator: process {N} notes` (include `data.files`).
+- If a report is rendered and committed separately, use `notator: add report ({report.kind})`.
+- Echo JSON: include `data.git = { policy: "auto" | "none", source: "tool" | "cli" }` and `selectedGroups.commit-policy`.
+ 
+
 ### Variants and exclusive groups
 
 - Mutually-exclusive variants (e.g., filename policies) share an `exclusive_group`.
@@ -86,10 +101,12 @@ Apply a consistent filename policy:
 - `-filename` can be an alias to the default (kebab) for convenience.
 - Precedence:
   1. CLI-requested variant (last CLI wins; warn on multiple).
-  2. Else, group default.
+  2. Else, group default (or global defaults if defined in `config/defaults.md`).
   3. Else, first included variant.
   4. Conflicting included variants → keep first; warn (CLI still overrides).
 - Ordering/dedup: expand in CLI order with pre-order includes; deduplicate globally; place the chosen group variant where the group first appears.
+- Other example groups:
+  - `commit-policy`: variants `-git` (default) and `-no-commit`.
 
 Example (conceptual):
 
@@ -161,15 +178,16 @@ Minimal shape:
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
     "includedSwitches": ["-rename", "-filename-kebab", "-report-brief"],
-    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-report-brief", "-preview"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-git", "-report-brief", "-preview"],
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
-    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-report-brief": "library/shared/switches/report-brief.md"},
-    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}, "report-detail": {"chosen": "-report-brief", "source": "cli"}},
+    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-git": "library/notator/shared/git.md", "-report-brief": "library/shared/switches/report-brief.md"},
+    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}, "report-detail": {"chosen": "-report-brief", "source": "cli"}, "commit-policy": {"chosen": "-git", "source": "defaults"}},
     "events": [
       {"ts":"2025-11-09T18:45:12Z","tool":"notator","type":"rename","summary":"renamed and converted character.interaction.doc to character-interaction.md","data":{"from":"character.interaction.doc","to":"character-interaction.md","extChanged":true},"switch":"-rename"}
     ],
     "report": {"kind":"brief","intendedPath":"reports/brief.md"},
+    "git": {"policy":"auto","source":"defaults"},
     "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": {"cmd": "notator.run", "args": {"apply": false}}
