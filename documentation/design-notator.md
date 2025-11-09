@@ -22,9 +22,9 @@
   - Stage and commit changes using a conventional commit message.
 - `-notify` (library/notator/shared/notify.md)
   - Notify the user with a summary of operations or any conflicts.
-- `-filename` (library/shared/switches/filename.md)
+- `-filename` (alias to `-filename-kebab`) (library/shared/switches/filename-kebab.md)
   - Global shared switch; standardize filenames across tools (kebab-case, collision rule).
-  - Can be used directly (`sofia notator run -process -filename`) or included by `-rename`.
+  - Can be used directly (`sofia notator run -process -filename-kebab` or alias `-filename`) or included by `-rename`.
 
 ---
 
@@ -38,26 +38,25 @@
 - Variables: referenced as `{namespace.key}`, e.g., `{paths.incoming}`.
 - Includes: deterministic composition via `includes = ["-other-switch"]`.
 
-Shared switch example (`-filename`):
+Shared switch example (`-filename-kebab`):
 
 ````markdown
 +++
 tool = "shared"
 type = "switch"
-switch = "-filename"
+switch = "-filename-kebab"
 help = "Standardize filenames across tools using kebab-case and consistent rules."
-aliases = ["-name", "-filenames"]
+aliases = ["-filename", "-name", "-filenames"]
 tags = ["naming", "shared", "conventions"]
 version = 1
-id = "shared.filename"
+id = "shared.filename.kebab"
 +++
 
 ```prompt
 Apply a consistent filename policy:
 - Use {naming.kebab_case} for all filenames.
 - Derive the base name from the provided title/topic; remove punctuation and symbols.
-- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim edges.
-- Preserve the `.md` extension unless otherwise specified by the calling context.
+- Preserve the `.{naming.default_extension}` extension unless otherwise specified by the calling context.
 - If a collision would occur, append a numeric suffix beginning at `-2`.
 - Output only the filename string.
 ```
@@ -130,8 +129,8 @@ archive  = "notes/archive"
   - Default `--dry-run` (no side effects in MVP).
   - Output composed prompts + echo JSON; write session manifest JSON.
   - Example usages:
-    - Explicit: `sofia notator run -process -filename -preview`
-    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename`).
+    - Explicit: `sofia notator run -process -filename-kebab -preview` (or alias `-filename`)
+    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename-kebab`).
   - Precedence: CLI overrides includes; last CLI variant wins within an exclusive group (emit a warning).
 
 ---
@@ -147,13 +146,13 @@ Minimal shape:
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename"],
-    "resolvedSwitches": ["-process", "-rename", "-filename", "-preview"],
+    "includedSwitches": ["-rename", "-filename-kebab"],
+    "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-preview"],
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
-    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename": "library/shared/switches/filename.md"},
-    "selectedGroups": {"filename-policy": {"chosen": "-filename", "source": "default"}},
-    "warnings": ["CLI requested -filename-camel overrides included -filename"]
+    "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md"},
+    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}},
+    "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
   "next": {"cmd": "notator.run", "args": {"apply": false}}
 }

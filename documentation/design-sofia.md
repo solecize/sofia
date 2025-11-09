@@ -67,9 +67,11 @@
       - notify.md
   - shared/
     - switches/
-      - filename.md
+      - filename-kebab.md
       - filename-camel.md
       - filename-pascal.md
+  - config/
+    - defaults.md
   - vars/
     - paths.md
     - naming.md
@@ -127,9 +129,10 @@ Apply {naming.kebab_case}. Do not invent content.
 - Aliases can map convenience flags to variants (e.g., `-filename` → kebab by default).
 - Precedence and selection:
   1. CLI-requested variant in the group (if multiple, last CLI wins; emit a warning).
-  2. If none requested, use the group’s `default = true` variant.
-  3. If a parent includes a variant but no default exists, use that included variant.
-  4. If multiple included variants conflict, keep the first; emit a warning (CLI still overrides).
+  2. Else, global defaults (from `config/defaults.md`) if present.
+  3. Else, the group’s `default = true` variant (if declared in the switch front matter).
+  4. Else, if a parent includes a variant, use that included variant.
+  5. If multiple included variants conflict, keep the first; emit a warning (CLI still overrides).
 - Ordering and dedup:
   - Expand in CLI order with pre-order includes. Deduplicate globally while preserving the first position where the group was introduced.
   - Includes and CLI flags are both resolved through the alias map (aliases are valid in either location).
@@ -179,12 +182,12 @@ Shared example:
 +++
 tool = "shared"
 type = "switch"
-switch = "-filename"
+switch = "-filename-kebab"
 help = "Standardize filenames across tools using kebab-case and consistent rules."
-aliases = ["-name", "-filenames"]
+aliases = ["-filename", "-name", "-filenames"]
 tags = ["naming", "shared", "conventions"]
 version = 1
-id = "shared.filename"
+id = "shared.filename.kebab"
 +++
 
 ```prompt
@@ -192,7 +195,7 @@ Apply a consistent filename policy:
 - Use {naming.kebab_case} for all filenames.
 - Derive the base name from the provided title/topic; remove punctuation and symbols.
 - Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim edges.
-- Preserve the `.md` extension unless otherwise specified by the calling context.
+- Preserve the `.{naming.default_extension}` extension unless otherwise specified by the calling context.
 - If a collision would occur, append a numeric suffix beginning at `-2`.
 - Output only the filename string.
 ```
@@ -223,7 +226,7 @@ Warnings & Errors:
   - Outputs available switches (name, help, source file).
 - `sofia notator run [switches...] [--dry-run/--apply]`
   - Default `--dry-run` (MVP does not perform I/O beyond logging).
-  - Composes prompts, resolves includes and exclusive groups (CLI > tool include > group default > includes), substitutes variables, emits echo JSON, writes session manifest.
+  - Composes prompts, resolves includes and exclusive groups (CLI > tool include > global defaults > group default > includes), substitutes variables, emits echo JSON, writes session manifest.
 
 Future:
 - `sofia init` to scaffold library/config.
@@ -246,7 +249,7 @@ Schema (MVP):
     "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
-    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename.md" },
+    "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md" },
     "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" } },
     "warnings": ["CLI requested -filename-camel overrides included -filename-kebab"]
   },
