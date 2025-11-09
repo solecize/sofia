@@ -25,11 +25,13 @@ About CLI switches and includes:
 ```prompt
 Apply a consistent filename policy:
 - Use {naming.kebab_case} for all filenames.
-- Derive the base name from the provided title/topic; remove punctuation and symbols.
-- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim edges.
-- Preserve the `.md` extension unless otherwise specified by the calling context.
+- Derive the base name from the provided title/topic.
+- Normalize input: ASCII-fold; remove punctuation and symbols; keep digits.
+- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim leading/trailing hyphens.
+- Use the .{naming.default_extension} extension unless otherwise specified by the calling context.
 - Do not include directory paths in the filename, only the basename with extension.
 - If a collision would occur, append a numeric suffix beginning at `-2`.
+- Idempotent rule: if the appropriate suffix is already present, do not append another.
 - Do not add summaries or prose to the filename output.
 - Output only the filename string.
 ```

@@ -14,11 +14,13 @@ id = "shared.filename.pascal"
 ```prompt
 Apply a consistent filename policy:
 - Use PascalCase for all filenames.
-- Start each word with an uppercase letter; remove punctuation and symbols.
+- Start each word with an uppercase letter.
+- Normalize input: ASCII-fold; remove punctuation and symbols; keep digits.
 - Join words without separators.
-- Preserve the `.md` extension unless otherwise specified by the calling context.
+- Use the .{naming.default_extension} extension unless otherwise specified by the calling context.
 - Do not include directory paths in the filename, only the basename with extension.
 - If a collision would occur, append a numeric suffix beginning at `2` (e.g., `MyFile2.md`).
+- Idempotent rule: if the appropriate suffix is already present, do not append another.
 - Output only the filename string.
 ```
 

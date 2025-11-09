@@ -68,6 +68,8 @@
   - shared/
     - switches/
       - filename.md
+      - filename-camel.md
+      - filename-pascal.md
   - vars/
     - paths.md
     - naming.md
@@ -211,7 +213,7 @@ Warnings & Errors:
   - Outputs available switches (name, help, source file).
 - `sofia notator run [switches...] [--dry-run/--apply]`
   - Default `--dry-run` (MVP does not perform I/O beyond logging).
-  - Composes prompts, substitutes variables, emits echo JSON, writes session manifest.
+  - Composes prompts, resolves includes and exclusive groups (CLI > tool include > group default > includes), substitutes variables, emits echo JSON, writes session manifest.
 
 Future:
 - `sofia init` to scaffold library/config.
