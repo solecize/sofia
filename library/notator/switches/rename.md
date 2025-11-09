@@ -1,6 +1,6 @@
 # Notator Switch: -rename
 
-++
++++
 tool = "notator"
 type = "switch"
 switch = "-rename"
