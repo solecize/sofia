@@ -12,7 +12,7 @@
 
 - `-process` (library/notator/switches/process.md)
   - Organize notes from incoming → preview; enforce naming rules.
-  - Includes: `-rename`.
+  - Includes: `-rename`, `-report-brief`.
 - `-rename` (library/notator/switches/rename.md)
   - Rename files using kebab-case based on note topic.
   - Typically includes `-filename` (shared) to enforce global naming policy.
@@ -160,8 +160,8 @@ archive  = "notes/archive"
   - Default `--dry-run` (no side effects in MVP).
   - Output composed prompts + echo JSON; write session manifest JSON.
   - Example usages:
-    - Explicit: `sofia notator run -process -filename-kebab -report -preview`
-    - Via includes: `sofia notator run -process -preview` (resolves `-rename` → `-filename-kebab`; add `-report` to render a brief report)
+    - Explicit: `sofia notator run -process -filename-kebab -report-verbose -preview` (switch to verbose report)
+    - Via includes: `sofia notator run -process -preview` (includes `-rename` and `-report-brief`; CLI can override to `-report-verbose`)
   - Precedence: CLI overrides includes; last CLI variant wins within an exclusive group (emit a warning).
 
 ---
@@ -182,7 +182,7 @@ Minimal shape:
     "variables": {"paths.incoming": "notes/incoming", "paths.preview": "notes/preview"},
     "composedPrompts": ["...fully resolved prompt text..."],
     "sourceFiles": {"-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-git": "library/notator/shared/git.md", "-report-brief": "library/shared/switches/report-brief.md"},
-    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}, "report-detail": {"chosen": "-report-brief", "source": "cli"}, "commit-policy": {"chosen": "-git", "source": "defaults"}},
+    "selectedGroups": {"filename-policy": {"chosen": "-filename-kebab", "source": "tool"}, "report-detail": {"chosen": "-report-brief", "source": "tool"}, "commit-policy": {"chosen": "-git", "source": "defaults"}},
     "events": [
       {"ts":"2025-11-09T18:45:12Z","tool":"notator","type":"rename","summary":"renamed and converted character.interaction.doc to character-interaction.md","data":{"from":"character.interaction.doc","to":"character-interaction.md","extChanged":true},"switch":"-rename"}
     ],
@@ -200,4 +200,6 @@ Minimal shape:
 
 - `notator list` shows `-process`, `-rename`, `-preview`, `-git`, `-notify`, `-filename` with help and source paths.
 - `notator run -process -preview` resolves includes, substitutes variables, emits echo JSON, and writes a `sessions/.../manifest.json`.
+- `-process` includes `-report-brief` by default; CLI can select `-report-verbose`.
+- Commit policy default is `-git` via config; `-no-commit` disables emitting git.add/commit events.
 - Errors are actionable (missing switch/include/variable) and reference source files.

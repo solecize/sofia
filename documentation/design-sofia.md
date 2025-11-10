@@ -286,7 +286,7 @@ Schema (MVP):
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
     "sourceFiles": { "-process": "library/notator/switches/process.md", "-filename-kebab": "library/shared/switches/filename-kebab.md", "-git": "library/notator/shared/git.md", "-report-brief": "library/shared/switches/report-brief.md" },
-    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" }, "report-detail": { "chosen": "-report-brief", "source": "cli" }, "commit-policy": { "chosen": "-git", "source": "defaults" } },
+    "selectedGroups": { "filename-policy": { "chosen": "-filename-kebab", "source": "tool" }, "report-detail": { "chosen": "-report-brief", "source": "tool" }, "commit-policy": { "chosen": "-git", "source": "defaults" } },
     "events": [
       { "ts": "2025-11-09T18:45:12Z", "tool": "notator", "type": "rename", "summary": "renamed and converted character.interaction.doc to character-interaction.md", "data": { "from": "character.interaction.doc", "to": "character-interaction.md", "extChanged": true }, "switch": "-rename" }
     ],
