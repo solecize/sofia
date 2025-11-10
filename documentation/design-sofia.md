@@ -281,7 +281,7 @@ Schema (MVP):
   "data": {
     "tool": "notator",
     "requestedSwitches": ["-process", "-preview"],
-    "includedSwitches": ["-rename", "-filename-kebab", "-git", "-report-brief"],
+    "includedSwitches": ["-rename", "-filename-kebab", "-report-brief"],
     "resolvedSwitches": ["-process", "-rename", "-filename-kebab", "-git", "-report-brief", "-preview"],
     "variables": { "paths.incoming": "notes/incoming", "paths.preview": "notes/preview" },
     "composedPrompts": ["...resolved prompt text segments..."],
