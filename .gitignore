@@ -21,6 +21,11 @@ __pycache__/
 
 # ChatGPT exports (large binary files)
 notes/incoming/notes-download-*/
+
+# Manuscript files (large, user-specific)
+notes/incoming/error-correction-current-draft/
+*.scriv/
+*.scrivx
 *.dat
 *.png
 *.jpg

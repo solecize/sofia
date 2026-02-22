@@ -12,10 +12,12 @@ show_usage() {
     echo "Switches:"
     echo "  -summarize    Extract story elements from a conversational note"
     echo "  -consolidate  Merge multiple notes about the same subject"
+    echo "  -extract      Extract entities (people/places/events/objects/ideas) from a chapter"
     echo ""
     echo "Examples:"
     echo "  sofia-prompt -summarize notes/preview/error-correction/2025-09-11-character-paths.md"
     echo "  sofia-prompt -consolidate notes/preview/error-correction/2025-09-*.md"
+    echo "  sofia-prompt -extract chapters/01-above-the-fold.md"
     echo ""
     echo "Output goes to stdout - pipe to a file or clipboard:"
     echo "  sofia-prompt -summarize note.md | pbcopy   # macOS clipboard"
@@ -36,6 +38,9 @@ case "$SWITCH" in
         ;;
     -consolidate|-merge)
         PROMPT_FILE="$LIBRARY/consolidate.md"
+        ;;
+    -extract|-entities)
+        PROMPT_FILE="$LIBRARY/extract-entities.md"
         ;;
     *)
         echo "Error: Unknown switch '$SWITCH'"
