@@ -1,0 +1,71 @@
+#!/bin/bash
+# sofia-prompt: Generate LLM prompts for note processing
+# Usage: sofia-prompt -summarize <note.md> > prompt.txt
+#        sofia-prompt -consolidate <note1.md> <note2.md> ... > prompt.txt
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LIBRARY="$SCRIPT_DIR/library/shared/switches"
+
+show_usage() {
+    echo "Usage: sofia-prompt <switch> <note(s)>"
+    echo ""
+    echo "Switches:"
+    echo "  -summarize    Extract story elements from a conversational note"
+    echo "  -consolidate  Merge multiple notes about the same subject"
+    echo ""
+    echo "Examples:"
+    echo "  sofia-prompt -summarize notes/preview/error-correction/2025-09-11-character-paths.md"
+    echo "  sofia-prompt -consolidate notes/preview/error-correction/2025-09-*.md"
+    echo ""
+    echo "Output goes to stdout - pipe to a file or clipboard:"
+    echo "  sofia-prompt -summarize note.md | pbcopy   # macOS clipboard"
+    echo "  sofia-prompt -summarize note.md > prompt.txt"
+}
+
+if [ $# -lt 2 ]; then
+    show_usage
+    exit 1
+fi
+
+SWITCH="$1"
+shift
+
+case "$SWITCH" in
+    -summarize|-sum)
+        PROMPT_FILE="$LIBRARY/summarize.md"
+        ;;
+    -consolidate|-merge)
+        PROMPT_FILE="$LIBRARY/consolidate.md"
+        ;;
+    *)
+        echo "Error: Unknown switch '$SWITCH'"
+        show_usage
+        exit 1
+        ;;
+esac
+
+if [ ! -f "$PROMPT_FILE" ]; then
+    echo "Error: Prompt file not found: $PROMPT_FILE"
+    exit 1
+fi
+
+# Output the prompt (skip TOML front matter)
+awk '/^---$/ || /^\+\+\+$/ { if (in_fm) { in_fm=0; next } else { in_fm=1; next } } !in_fm { print }' "$PROMPT_FILE"
+
+echo ""
+echo "---"
+echo ""
+
+# Append each note file
+for NOTE in "$@"; do
+    if [ -f "$NOTE" ]; then
+        echo "## Input: $(basename "$NOTE")"
+        echo ""
+        cat "$NOTE"
+        echo ""
+        echo "---"
+        echo ""
+    else
+        echo "Warning: File not found: $NOTE" >&2
+    fi
+done

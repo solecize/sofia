@@ -77,6 +77,48 @@ static bool contains_ci(const char *haystack, const char *needle) {
     return false;
 }
 
+/* 
+ * Fuzzy match: splits needle on punctuation/spaces and checks if all words
+ * appear in haystack (in any order, with anything between them).
+ * e.g., "error*correction" matches "Error Correction" or "error-correction"
+ */
+static bool contains_fuzzy(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return false;
+    
+    /* Make a copy of needle to tokenize */
+    char *needle_copy = strdup(needle);
+    if (!needle_copy) return false;
+    
+    /* Split on common delimiters and check each word */
+    bool all_found = true;
+    char *word = needle_copy;
+    char *p = needle_copy;
+    
+    while (*p && all_found) {
+        /* Skip to end of word (stop at punctuation/space) */
+        while (*p && isalnum((unsigned char)*p)) p++;
+        
+        if (p > word) {
+            char saved = *p;
+            *p = '\0';
+            
+            /* Check if this word exists in haystack */
+            if (strlen(word) > 0 && !contains_ci(haystack, word)) {
+                all_found = false;
+            }
+            
+            *p = saved;
+        }
+        
+        /* Skip delimiters */
+        while (*p && !isalnum((unsigned char)*p)) p++;
+        word = p;
+    }
+    
+    free(needle_copy);
+    return all_found;
+}
+
 /* Match confidence levels */
 typedef enum {
     CONF_NONE = 0,
@@ -281,20 +323,25 @@ static void parse_conversations(const char *json, const char *topic, Conversatio
         if (!topic || strlen(topic) == 0) {
             conf = CONF_HIGH;  /* No filter = include all */
         } else {
-            /* Check title first (strongest signal) */
-            if (title && contains_ci(title, topic)) {
+            /* Check title first (strongest signal) - use fuzzy match */
+            if (title && contains_fuzzy(title, topic)) {
                 conf = CONF_HIGH;
                 match_count += 10;  /* Title match worth more */
             }
             
-            /* Check content */
+            /* Check content - use fuzzy match */
             char *content = extract_conversation_text(conv_json);
             if (content) {
-                int content_matches = count_occurrences(content, topic);
-                match_count += content_matches;
+                /* For content, check if fuzzy match exists */
+                if (contains_fuzzy(content, topic)) {
+                    match_count += 1;
+                    /* Count additional exact occurrences for confidence */
+                    int exact_matches = count_occurrences(content, topic);
+                    match_count += exact_matches;
+                }
                 
-                if (content_matches > 0 && conf < CONF_HIGH) {
-                    if (content_matches >= 5) {
+                if (match_count > 0 && conf < CONF_HIGH) {
+                    if (match_count >= 5) {
                         conf = CONF_MEDIUM;
                     } else {
                         conf = CONF_LOW;
@@ -369,7 +416,7 @@ static void print_usage(const char *prog) {
     fprintf(stderr, "  --output <dir>     Output directory (default: stdout)\n");
     fprintf(stderr, "  --format <fmt>     Output format: markdown, json (default: markdown)\n");
     fprintf(stderr, "  --list             List matching conversations without extracting\n");
-    fprintf(stderr, "  --candidates       Output candidate list with confidence scores (for review)\n");
+    fprintf(stderr, "  --candidates <file> Output candidate list to file (for review and editing)\n");
 }
 
 int main(int argc, char **argv) {
@@ -384,7 +431,7 @@ int main(int argc, char **argv) {
     const char *output_dir = NULL;
     const char *format = "markdown";
     bool list_only = false;
-    bool candidates_mode = false;
+    const char *candidates_file = NULL;
     
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--topic") == 0 && i + 1 < argc) {
@@ -397,8 +444,8 @@ int main(int argc, char **argv) {
             format = argv[++i];
         } else if (strcmp(argv[i], "--list") == 0) {
             list_only = true;
-        } else if (strcmp(argv[i], "--candidates") == 0) {
-            candidates_mode = true;
+        } else if (strcmp(argv[i], "--candidates") == 0 && i + 1 < argc) {
+            candidates_file = argv[++i];
         } else if (argv[i][0] != '-') {
             input_file = argv[i];
         }
@@ -452,40 +499,44 @@ int main(int argc, char **argv) {
     qsort(list.items, list.count, sizeof(Conversation), conv_cmp_time_desc);
     
     /* Candidates mode: output for review with confidence scores */
-    if (candidates_mode) {
-        printf("# Candidate conversations for '%s'\n", topic ? topic : "*");
-        printf("# Delete lines you don't want, then use --titles with this file\n");
-        printf("# Format: CONFIDENCE | DATE | TITLE\n\n");
+    if (candidates_file) {
+        FILE *out = fopen(candidates_file, "w");
+        if (!out) {
+            fprintf(stderr, "Error: Could not write to %s\n", candidates_file);
+            return 1;
+        }
+        
+        fprintf(out, "# Candidate conversations for '%s'\n", topic ? topic : "*");
+        fprintf(out, "# Delete lines you don't want, then use --titles with this file\n");
+        fprintf(out, "# Lines starting with # are skipped\n\n");
         
         /* Group by confidence */
-        printf("## HIGH confidence (title match or strong content)\n\n");
+        fprintf(out, "## HIGH confidence (title match or strong content)\n\n");
         for (size_t i = 0; i < list.count; i++) {
             Conversation *c = &list.items[i];
             if (c->confidence == CONF_HIGH) {
-                time_t t = (time_t)c->create_time;
-                struct tm *tm = localtime(&t);
-                char date[32];
-                strftime(date, sizeof(date), "%Y-%m-%d", tm);
-                printf("%s\n", c->title);
+                fprintf(out, "%s\n", c->title);
             }
         }
         
-        printf("\n## MEDIUM confidence (multiple content mentions)\n\n");
+        fprintf(out, "\n## MEDIUM confidence (multiple content mentions)\n\n");
         for (size_t i = 0; i < list.count; i++) {
             Conversation *c = &list.items[i];
             if (c->confidence == CONF_MEDIUM) {
-                printf("%s\n", c->title);
+                fprintf(out, "%s\n", c->title);
             }
         }
         
-        printf("\n## LOW confidence (weak match - review carefully)\n\n");
+        fprintf(out, "\n## LOW confidence (weak match - review carefully)\n\n");
         for (size_t i = 0; i < list.count; i++) {
             Conversation *c = &list.items[i];
             if (c->confidence == CONF_LOW) {
-                printf("# %s\n", c->title);  /* Commented out by default */
+                fprintf(out, "# %s\n", c->title);  /* Commented out by default */
             }
         }
         
+        fclose(out);
+        printf("Wrote %zu candidates to %s\n", list.count, candidates_file);
         return 0;
     }
     
