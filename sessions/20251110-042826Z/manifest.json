@@ -1,0 +1,103 @@
+{
+  "ui": "Organize notes: -filename-kebab, -events-ledger, -rename, -report-brief, -process, -no-commit",
+  "ask": {
+    "confirm": {
+      "default": true,
+      "options": [
+        "continue",
+        "revise",
+        "cancel"
+      ]
+    }
+  },
+  "data": {
+    "tool": "notator",
+    "requestedSwitches": [
+      "-process"
+    ],
+    "includedSwitches": [
+      "-filename-kebab",
+      "-events-ledger",
+      "-rename",
+      "-report-brief"
+    ],
+    "resolvedSwitches": [
+      "-filename-kebab",
+      "-events-ledger",
+      "-rename",
+      "-report-brief",
+      "-process",
+      "-no-commit"
+    ],
+    "variables": {
+      "report.dir": "reports/meetings",
+      "report.brief_filename": "brief.md",
+      "report.verbose_filename": "full.md",
+      "filters.ignore_hidden": "True",
+      "filters.ignore_patterns": "[\".DS_Store\", \"Thumbs.db\", \"~*\", \"*.tmp\", \"*.swp\"]",
+      "paths.incoming": "notes/incoming",
+      "paths.preview": "notes/preview",
+      "paths.wiki": "notes/wiki",
+      "paths.archive": "notes/archive",
+      "naming.kebab_case": "lowercase, hyphen-separated, ASCII-only; remove punctuation; collapse repeated hyphens; trim edges",
+      "naming.default_extension": "md",
+      "naming.ascii_fold": "True",
+      "naming.keep_digits": "True",
+      "naming.strip_punctuation": "True",
+      "naming.collision_suffix_kebab": "-{n}",
+      "naming.collision_suffix_camel": "{n}",
+      "naming.collision_suffix_pascal": "{n}",
+      "naming.idempotent_suffix": "True"
+    },
+    "composedPrompts": [
+      "Apply a consistent filename policy:\n- Use lowercase, hyphen-separated, ASCII-only; remove punctuation; collapse repeated hyphens; trim edges for all filenames.\n- Derive the base name from the provided title/topic.\n- Normalize input: ASCII-fold; remove punctuation and symbols; keep digits.\n- Convert to lowercase; replace whitespace with single hyphens; collapse repeated hyphens; trim leading/trailing hyphens.\n- Use the .md extension unless otherwise specified by the calling context.\n- Do not include directory paths in the filename, only the basename with extension.\n- If a collision would occur, append a numeric suffix beginning at `-2`.\n- Idempotent rule: if the appropriate suffix is already present, do not append another.\n- Do not add summaries or prose to the filename output.\n- Output only the filename string.",
+      "Maintain a JSON Lines (one JSON object per line) events ledger as actions are performed.\n- Strict JSON: no trailing commas; one compact object per line.\n- Fields per event:\n  - ts: ISO8601 UTC timestamp (e.g., 2025-11-09T18:45:12Z)\n  - tool: the active tool name (e.g., \"notator\")\n  - type: event type (e.g., \"rename\", \"move\", \"create\", \"delete\", \"git.commit\", \"notify\")\n  - summary: short human-readable description\n  - data: object with type-specific fields (e.g., {from, to, path, extChanged})\n  - switch: triggering switch (e.g., \"-rename\")\n  - severity: \"info\" | \"warn\" | \"error\" (optional)\n  - id: optional unique identifier for idempotency\n- Idempotency: if an event with the same id appears again, do not duplicate it.\n- Echo: include the appended events in the Echo JSON under data.events (JSONL string or array of objects).",
+      "Rename each note file according to the global filename policy.\n- Prefer the title or first-level heading as the basis for the filename.\n- If a specific topic or slug is provided, prefer that.\n- Do not add or invent prose; do not include directory paths; output guidance only.\n- Apply the policy included via `-filename` (default kebab-case) unless the user selects another filename variant.\n- After determining each rename, append a JSON line to the events ledger with:\n  - type: \"rename\"\n  - summary: \"renamed and converted {from} to {to}\"\n  - data: {from: <original name>, to: <new name>, extChanged: <true|false>}\n  - switch: \"-rename\"",
+      "Render a brief Markdown report from the events ledger using summary templates.\n- Input: the JSON Lines events ledger accumulated during the run.\n- Use the `summary_template` mappings to convert each event to one line.\n- Unknown event types: use the event's `summary` field; if absent, pretty-print the minimal `type` and `data`.\n- Sort lines by event timestamp ascending.\n- Output path intent: reports/meetings/brief.md (do not perform file I/O in MVP; print the report body).\n- Include a short title and date header.",
+      "Disable Git commits for this run.\n\n- Commit behavior:\n  - Do not emit `git.add` or `git.commit` events.\n  - Emit a `notify` event with:\n    - summary: \"commits disabled for this run\"\n    - data: { reason: \"commit-policy:no-commit\" }\n  - If any downstream logic expects commit outputs, annotate accordingly in the report.\n\n- Echo alignment:\n  - data.git.policy = \"none\" when this variant is selected.\n  - data.git.source reflects the selection source (typically \"cli\")."
+    ],
+    "sourceFiles": {
+      "-filename-kebab": "library/shared/switches/filename-kebab.md",
+      "-events-ledger": "library/shared/switches/events-ledger.md",
+      "-rename": "library/notator/switches/rename.md",
+      "-report-brief": "library/shared/switches/report-brief.md",
+      "-process": "library/notator/switches/process.md",
+      "-no-commit": "library/notator/shared/no-commit.md"
+    },
+    "selectedGroups": {
+      "report-detail": {
+        "chosen": "-report-brief",
+        "source": "tool"
+      },
+      "filename-policy": {
+        "chosen": "-filename-kebab",
+        "source": "tool"
+      },
+      "commit-policy": {
+        "chosen": "-no-commit",
+        "source": "workspace"
+      }
+    },
+    "events": [],
+    "report": {
+      "kind": "brief",
+      "intendedPath": "reports/meetings/brief.md"
+    },
+    "git": {
+      "policy": "none",
+      "source": "workspace"
+    },
+    "warnings": [],
+    "workspace": {
+      "name": "meeting-notes",
+      "path": "config/workspaces/meeting-notes.md",
+      "source": "cli"
+    }
+  },
+  "next": {
+    "cmd": "notator.run",
+    "args": {
+      "apply": false
+    }
+  }
+}

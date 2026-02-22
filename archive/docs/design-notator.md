@@ -31,7 +31,7 @@
   - Render a verbose Markdown report with detailed lines to `{report.dir}/{report.verbose_filename}`.
 - `-events-ledger` (library/shared/switches/events-ledger.md)
   - Maintain a JSONL events ledger during runs; other switches emit typed events.
- - `-no-commit` (alias `-nocommit`) (design-only in MVP)
+ - `-no-commit` (alias `-nocommit`) (library/notator/shared/no-commit.md)
    - Disable auto commits; when present, do not emit `git.add`/`git.commit` events and emit a `notify` that commits are disabled.
 
 ---
@@ -108,6 +108,17 @@ Apply a consistent filename policy:
 - Other example groups:
   - `commit-policy`: variants `-git` (default) and `-no-commit`.
 
+## 3a) Workspaces (profiles)
+
+- Purpose: maintain selectable profiles (e.g., meeting notes vs fiction notes) and enable a reset-to-default baseline independent of library growth.
+- Files: `config/workspaces/<name>.md` with TOML in a fenced block.
+- Supported keys:
+  - `[groups]` global group defaults, e.g., `report-detail = "-report-verbose"`
+  - `[tools.notator.groups]` tool-scoped group defaults
+  - `[vars.<namespace>]` variable overrides merged into flattened variables (e.g., `[vars.report] dir = "reports/meetings"`)
+- Precedence with workspaces: CLI > tool include > workspace (tool, then global) > global defaults > registry default.
+- Echo JSON additions: `data.workspace = { name, path, source: "cli" }`. `selectedGroups.*.source` may be `"workspace"` when chosen by workspace.
+
 Example (conceptual):
 
 ````markdown
@@ -156,13 +167,14 @@ archive  = "notes/archive"
 
 - `sofia notator list`
   - List available switches with help and source file.
-- `sofia notator run [switches...] [--dry-run | --apply]`
+- `sofia notator run [switches...] [--dry-run | --apply] [--workspace <name>]`
   - Default `--dry-run` (no side effects in MVP).
   - Output composed prompts + echo JSON; write session manifest JSON.
   - Example usages:
     - Explicit: `sofia notator run -process -filename-kebab -report-verbose -preview` (switch to verbose report)
     - Via includes: `sofia notator run -process -preview` (includes `-rename` and `-report-brief`; CLI can override to `-report-verbose`)
-  - Precedence: CLI overrides includes; last CLI variant wins within an exclusive group (emit a warning).
+    - With workspace: `sofia notator run --workspace meeting-notes -process` (workspace sets commit-policy to `-no-commit` and can change report vars)
+  - Precedence: CLI > tool include > workspace (tool→global) > global defaults > registry default. Last CLI variant wins within an exclusive group (emit a warning).
 
 ---
 
@@ -194,6 +206,10 @@ Minimal shape:
 }
 ```
 
+Notes:
+- `selectedGroups.*.source` may be `"workspace"` when the variant is chosen via `--workspace`.
+- `data.workspace` is present when `--workspace` is used: `{ "name": "<name>", "path": "config/workspaces/<name>.md", "source": "cli" }`.
+
 ---
 
 ## 7) Acceptance Criteria (MVP)
@@ -202,4 +218,5 @@ Minimal shape:
 - `notator run -process -preview` resolves includes, substitutes variables, emits echo JSON, and writes a `sessions/.../manifest.json`.
 - `-process` includes `-report-brief` by default; CLI can select `-report-verbose`.
 - Commit policy default is `-git` via config; `-no-commit` disables emitting git.add/commit events.
+- `--workspace meeting-notes` selects `commit-policy = -no-commit` and updates `report.dir = reports/meetings` in variables and report path.
 - Errors are actionable (missing switch/include/variable) and reference source files.

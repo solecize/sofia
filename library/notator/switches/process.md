@@ -5,7 +5,7 @@
   type = "switch"
   switch = "-process"
   help = "Process incoming notes and prepare for preview; apply naming; emit events; render brief report."
-  includes = ["-rename", "-report-brief"]
+  includes = ["-core", "-rename", "-report-brief"]
   tags = ["core", "process"]
   version = 1
   id = "notator.process"

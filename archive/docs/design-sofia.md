@@ -77,6 +77,10 @@
       - templates.md
   - config/
     - defaults.md
+    - workspaces/
+      - default.md
+      - meeting-notes.md
+      - fiction-notes.md
   - vars/
     - paths.md
     - naming.md
@@ -135,10 +139,10 @@ Apply {naming.kebab_case}. Do not invent content.
 - Aliases can map convenience flags to variants (e.g., `-filename` → kebab by default).
 - Precedence and selection:
   1. CLI-requested variant in the group (if multiple, last CLI wins; emit a warning).
-  2. Else, global defaults (from `config/defaults.md`) if present.
-  3. Else, the group’s `default = true` variant (if declared in the switch front matter).
-  4. Else, if a parent includes a variant, use that included variant.
-  5. If multiple included variants conflict, keep the first; emit a warning (CLI still overrides).
+  2. Else, included variant from a tool switch (source = "tool").
+  3. Else, workspace defaults (tool-scoped first, then global) from `config/workspaces/<name>.md` (source = "workspace").
+  4. Else, global defaults from `config/defaults.md` (source = "defaults").
+  5. Else, the registry’s `default = true` variant in the group (source = "group").
 - Ordering and dedup:
   - Expand in CLI order with pre-order includes. Deduplicate globally while preserving the first position where the group was introduced.
   - Includes and CLI flags are both resolved through the alias map (aliases are valid in either location).
@@ -179,7 +183,18 @@ Apply {naming.kebab_case}. Do not invent content.
   - `git.init`: `{ path }`
   - `git.add`: `{ paths: [...], count }`
   - `git.commit`: `{ message, files: [...] }`
-- Echo JSON: record `data.git = { policy: "auto" | "none", source: "tool" | "cli" }` and track `selectedGroups.commit-policy`.
+- Echo JSON: record `data.git = { policy: "auto" | "none", source: "cli" | "workspace" | "defaults" }` and track `selectedGroups.commit-policy`.
+
+### Workspaces (profiles)
+
+- Purpose: maintain selectable profiles of group defaults and variables (e.g., meeting notes vs fiction notes) and enable a consistent reset-to-default baseline.
+- Files live in `config/workspaces/<name>.md` with TOML in a fenced block.
+- Supported keys:
+  - `[groups]` global group defaults, e.g. `report-detail = "-report-verbose"`
+  - `[tools.<tool>.groups]` tool-scoped group defaults
+  - `[vars.<namespace>]` variable overrides that merge into the flat variables (e.g., `[vars.report] dir = "reports/meetings"`)
+- Precedence with workspaces: CLI > tool include > workspace (tool, then global) > global defaults > registry default.
+- Echo JSON additions: `data.workspace = { name, path, source: "cli" }`. `selectedGroups.*.source` may be `"workspace"` when chosen by workspace.
 
  
 
@@ -260,9 +275,9 @@ Warnings & Errors:
 
 - `sofia notator list`
   - Outputs available switches (name, help, source file).
-- `sofia notator run [switches...] [--dry-run/--apply]`
+- `sofia notator run [switches...] [--dry-run/--apply] [--workspace <name>]`
   - Default `--dry-run` (MVP does not perform I/O beyond logging).
-  - Composes prompts, resolves includes and exclusive groups (CLI > tool include > global defaults > group default > includes), substitutes variables, emits echo JSON, writes session manifest.
+  - Composes prompts, resolves includes and exclusive groups with precedence (CLI > tool include > workspace (tool→global) > global defaults > group default), substitutes variables (workspace vars override), emits echo JSON (with optional `data.workspace`), writes session manifest.
 
 Future:
 - `sofia init` to scaffold library/config.
@@ -273,6 +288,9 @@ Future:
 ## 9) Echo JSON (Control Block)
 
 Schema (MVP):
+Notes:
+- `selectedGroups.*.source` may be `"workspace"` when chosen by workspace.
+- `data.workspace` is present when `--workspace` is used: `{ "name": "<name>", "path": "config/workspaces/<name>.md", "source": "cli" }`.
 
 ```json
 {

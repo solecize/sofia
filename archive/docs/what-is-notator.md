@@ -10,6 +10,97 @@ Notator outputs are readable, inspectable, and repeatable, allowing users to mai
 
 ---
 
+
+## Quick Start: Sofia Notator (MVP)
+
+Use this to list switches, run a basic processing flow, and interpret the Echo JSON and session manifest.
+
+### Requirements
+- Python 3.11+
+- Run from repo root: /Users/jdfrey/Documents/sofia
+
+### TL;DR Commands
+- List switches:
+  ```
+  python3 tooling/sofia.py notator-list
+  ```
+- Run default brief report via process (includes rename, events ledger):
+  ```
+  python3 tooling/sofia.py notator-run -process
+  ```
+- Override report detail to verbose:
+  ```
+  python3 tooling/sofia.py notator-run -process -report-verbose
+  ```
+- Disable commits for the run:
+  ```
+  python3 tooling/sofia.py notator-run -process -no-commit
+  ```
+- Preview mode (annotates dry run in prompts):
+  ```
+  python3 tooling/sofia.py notator-run -process -preview
+  ```
+
+### What you’ll see
+- Echo JSON printed to stdout:
+  - ui: one-line description.
+  - ask: interactive hint block.
+  - data.requestedSwitches: switches you asked for.
+  - data.includedSwitches: switches pulled in by includes (e.g., -report-brief from -process).
+  - data.resolvedSwitches: final order after includes and exclusive-group resolution.
+  - data.selectedGroups: chosen variant and source for each exclusive group.
+  - data.composedPrompts: final prompts (with variables substituted).
+  - data.sourceFiles: where each switch came from.
+  - data.report: report kind and intended output path.
+  - data.git: commit-policy outcome and source (defaults vs cli).
+  - data.events: empty in MVP; reserved for future event objects.
+  - warnings: conflicts (e.g., dropping -report-brief when -report-verbose is selected).
+- Session manifest written to sessions/YYYYMMDD-HHMMSSZ/manifest.json.
+
+### Precedence rules (current)
+- CLI > tool include > global defaults > registry default
+
+Example:
+- -process includes -report-brief → report-detail.source="tool".
+- Adding -report-verbose on CLI overrides to source="cli".
+
+### Notes
+- All behavior is prompt-only in MVP (no filesystem or git side effects).
+- Git-by-default policy: default -git via config defaults; override with -no-commit.
+
+## Workspaces (profiles)
+
+Goal: Maintain stable, selectable sets of switches, group defaults, and variables (e.g., “meeting-notes” vs “fiction-notes”), and enable “reset to default” regardless of library growth.
+
+### Workspace files
+- Location: `config/workspaces/{name}.md`
+- Front matter example:
+  ```toml
+  type = "workspace"
+  id = "workspace.name"
+  name = "Name"
+  description = "Profile description"
+  # optional inheritance
+  extends = "base"
+  ```
+- TOML contents may include:
+  - `[groups]` global variants for exclusive groups
+  - `[tools.notator.groups]` tool-scoped variants
+  - `[vars.report]`, `[vars.paths]`, etc. to override variables
+  - Optional `[pins]` to lock `switch id -> version` for reproducible sets
+  - Optional `[visibility]` to filter `notator-list` by tags/allowlist
+
+### CLI support
+- `--workspace <name>` for `notator-run` (and optionally `notator-list`).
+
+### Precedence with workspace
+- CLI > tool include > workspace tool-group default > workspace global-group default > global defaults > registry default
+
+### Echo JSON additions
+- `data.workspace = { name, path, source: "cli" }`
+- `selectedGroups.*.source` may be `"workspace"` when chosen by workspace
+
+
 ## Notator’s Role within Sofia
 
 Sofia is designed around three core principles:

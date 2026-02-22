@@ -1,6 +1,6 @@
 # Notator Shared: notify
 
-++
++++
 tool = "notator"
 type = "switch"
 switch = "-notify"
@@ -9,7 +9,7 @@ includes = ["-events-ledger"]
 tags = ["notify", "events", "shared"]
 version = 1
 id = "notator.notify"
-++ 
++++
 
 # Notator Shared: -notify
 

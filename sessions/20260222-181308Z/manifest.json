@@ -1,0 +1,19 @@
+{
+  "ui": "Organize notes: -rename, -process, -preview",
+  "ask": {"confirm": {"default": true, "options": ["continue", "revise", "cancel"]}},
+  "data": {
+    "tool": "notator",
+    "requestedSwitches": ["-process", "-preview"],
+    "includedSwitches": [],
+    "resolvedSwitches": ["-rename", "-process", "-preview"],
+    "variables": {"report.dir": "reports", "report.brief_filename": "brief.md", "report.verbose_filename": "full.md", "filters.ignore_hidden": "true", "paths.incoming": "notes/incoming", "paths.preview": "notes/preview", "paths.wiki": "notes/wiki", "paths.archive": "notes/archive", "naming.kebab_case": "lowercase, hyphen-separated, ASCII-only; remove punctuation; collapse repeated hyphens; trim edges", "naming.default_extension": "md", "naming.ascii_fold": "true", "naming.keep_digits": "true", "naming.strip_punctuation": "true", "naming.collision_suffix_kebab": "-{n}", "naming.collision_suffix_camel": "{n}", "naming.collision_suffix_pascal": "{n}", "naming.idempotent_suffix": "true"},
+    "composedPrompts": ["Rename each note file according to the global filename policy.\n- Prefer the title or first-level heading as the basis for the filename.\n- If a specific topic or slug is provided, prefer that.\n- Do not add or invent prose; do not include directory paths; output guidance only.\n- Apply the policy included via `-filename` (default kebab-case) unless the user selects another filename variant.\n- After determining each rename, append a JSON line to the events ledger with:\n  - type: \"rename\"\n  - summary: \"renamed and converted {from} to {to}\"\n  - data: {from: <original name>, to: <new name>, extChanged: <true|false>}\n  - switch: \"-rename\"", "  You are an editing assistant that organizes notes without adding prose.\n  \n  Goals:\n  - Prepare notes from notes/incoming for notes/preview.\n  - Apply the filename policy included via `-filename` (default kebab-case).\n  - Do not perform file I/O in MVP; output guidance and events only.\n  \n  Steps:\n  - For each note in notes/incoming, determine a normalized filename and intended path `notes/preview/<name>`.\n  - If a note should be split into multiple topical notes, propose the resulting filenames; mark as a structural change for commit escalation.\n  - Append events to the JSONL ledger as actions are determined (e.g., `rename`, `create`).\n  - At the end, render a brief report using shared templates (via `-report-brief`).\n  ", "Annotate all outputs as a dry run (preview).\n- Use language like \"would rename\", \"would create\", \"would move\".\n- Do not perform any file I/O or shell commands (MVP is prompt-as-output only).\n- Clearly separate proposed actions from rationale.\n- Summarize proposed changes at the end (counts by action type)."],
+    "sourceFiles": {"-rename": "library/notator/switches/rename.md", "-process": "library/notator/switches/process.md", "-preview": "library/notator/switches/preview.md"},
+    "selectedGroups": {},
+    "events": [],
+    "report": {"kind": "brief", "intendedPath": "reports/brief.md"},
+    "git": {"policy": "auto", "source": "defaults"},
+    "warnings": ["Unknown include -filename-kebab in -rename", "Unknown include -events-ledger in -rename", "Unknown include -report-brief in -process"]
+  },
+  "next": {"cmd": "notator.run", "args": {"apply": false}}
+}

@@ -1,0 +1,20 @@
+# Build artifacts
+bin/
+build/
+*.o
+*.a
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Python (archived)
+__pycache__/
+*.pyc
+*.pyo
