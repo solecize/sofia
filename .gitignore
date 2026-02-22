@@ -18,3 +18,18 @@ build/
 __pycache__/
 *.pyc
 *.pyo
+
+# ChatGPT exports (large binary files)
+notes/incoming/notes-download-*/
+*.dat
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.wav
+*.mp3
+*.mp4
+
+# Keep markdown and text files
+!*.md
+!*.txt

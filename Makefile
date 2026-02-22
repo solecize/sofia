@@ -2,7 +2,7 @@
 # Builds the sofia command-line tool
 
 CC = cc
-CFLAGS = -Wall -Wextra -O2 -std=c99
+CFLAGS = -Wall -Wextra -O2 -std=c99 -Ivendor/tomlc99
 LDFLAGS =
 
 SRC_DIR = src
@@ -12,13 +12,23 @@ BIN_DIR = bin
 
 SOURCES = $(SRC_DIR)/sofia.c $(VENDOR_DIR)/toml.c
 TARGET = $(BIN_DIR)/sofia
+EXTRACT_SRC = $(SRC_DIR)/extract.c
+EXTRACT_BIN = $(BIN_DIR)/sofia-extract
+COMPILE_SRC = $(SRC_DIR)/compile.c
+COMPILE_BIN = $(BIN_DIR)/sofia-compile
 
-.PHONY: all clean install
+.PHONY: all clean install debug test
 
-all: $(TARGET)
+all: $(TARGET) $(EXTRACT_BIN) $(COMPILE_BIN)
 
 $(TARGET): $(SOURCES) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -I$(VENDOR_DIR) -o $@ $(SOURCES) $(LDFLAGS)
+
+$(EXTRACT_BIN): $(EXTRACT_SRC) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $(EXTRACT_SRC) $(LDFLAGS)
+
+$(COMPILE_BIN): $(COMPILE_SRC) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $@ $(COMPILE_SRC) $(LDFLAGS)
 
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
