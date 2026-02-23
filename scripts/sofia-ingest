@@ -12,6 +12,7 @@ show_usage() {
     echo "  --list            List detected chapters without extracting"
     echo ""
     echo "Splits a manuscript into individual chapter files for processing."
+    echo "Detects chapter markers: ===CHAPTER X===, 0x00 //Title, N: Title"
 }
 
 if [ $# -lt 1 ]; then
@@ -50,134 +51,77 @@ if [ ! -f "$INPUT" ]; then
     exit 1
 fi
 
-# Use awk to split on chapter markers
-# Patterns: "0x00 //Title", "31: Title", "Act N / Title"
-awk -v output_dir="$OUTPUT_DIR" -v list_only="$LIST_ONLY" '
-BEGIN {
-    chapter_num = 0
-    current_chapter = ""
-    current_title = ""
-    current_content = ""
-    in_chapter = 0
+# Create output directory if extracting
+if [ "$LIST_ONLY" = "false" ]; then
+    mkdir -p "$OUTPUT_DIR"
+fi
+
+# Use awk to split on chapter markers (===CHAPTER X===)
+awk -v OUTDIR="$OUTPUT_DIR" -v LIST_ONLY="$LIST_ONLY" '
+BEGIN { chapter_num = 0; in_chapter = 0; content = ""; in_separator = 0 }
+
+/^=+$/ { 
+    in_separator = 1
+    next
 }
 
-# Match Act headers
-/^[[:space:]]*Act [0-9]+ \// {
+in_separator && /CHAPTER/ {
     # Save previous chapter
-    if (in_chapter && length(current_content) > 100) {
-        if (list_only == "true") {
-            printf "%02d: %s\n", chapter_num, current_title
+    if (in_chapter && length(content) > 100) {
+        gsub(/[^a-z0-9]+/, "-", slug)
+        gsub(/^-+|-+$/, "", slug)
+        if (LIST_ONLY == "true") {
+            printf "%02d: %s\n", chapter_num, title
         } else {
-            filename = sprintf("%s/%02d-%s.md", output_dir, chapter_num, current_chapter)
-            print "# " current_title "\n" > filename
-            print current_content >> filename
+            filename = sprintf("%s/%02d-%s.md", OUTDIR, chapter_num, slug)
+            print "# " title > filename
+            print "" >> filename
+            print content >> filename
             close(filename)
             print "Wrote: " filename
         }
     }
     
     chapter_num++
-    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-    current_title = $0
-    current_chapter = tolower($0)
-    gsub(/[^a-z0-9]+/, "-", current_chapter)
-    gsub(/^-+|-+$/, "", current_chapter)
-    current_content = ""
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+    title = $0
+    slug = tolower($0)
+    content = ""
     in_chapter = 1
+    in_separator = 0
     next
 }
 
-# Match 0x00 //Title format
-/^[[:space:]]*0x[0-9A-Fa-f]+ \/\// {
-    # Save previous chapter
-    if (in_chapter && length(current_content) > 100) {
-        if (list_only == "true") {
-            printf "%02d: %s\n", chapter_num, current_title
-        } else {
-            filename = sprintf("%s/%02d-%s.md", output_dir, chapter_num, current_chapter)
-            print "# " current_title "\n" > filename
-            print current_content >> filename
-            close(filename)
-            print "Wrote: " filename
-        }
-    }
-    
-    chapter_num++
-    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-    current_title = $0
-    # Extract just the title part after //
-    idx = index($0, "//")
-    if (idx > 0) {
-        current_chapter = tolower(substr($0, idx + 2))
-    } else {
-        current_chapter = tolower($0)
-    }
-    gsub(/[^a-z0-9]+/, "-", current_chapter)
-    gsub(/^-+|-+$/, "", current_chapter)
-    current_content = ""
-    in_chapter = 1
+in_separator { 
+    if (in_chapter) content = content "======\n"
+    in_separator = 0
+}
+
+/^=+$/ && in_chapter {
     next
 }
 
-# Match "31: Title" format
-/^[[:space:]]*[0-9]+:[[:space:]]+[A-Za-z]/ {
-    # Save previous chapter
-    if (in_chapter && length(current_content) > 100) {
-        if (list_only == "true") {
-            printf "%02d: %s\n", chapter_num, current_title
-        } else {
-            filename = sprintf("%s/%02d-%s.md", output_dir, chapter_num, current_chapter)
-            print "# " current_title "\n" > filename
-            print current_content >> filename
-            close(filename)
-            print "Wrote: " filename
-        }
-    }
-    
-    chapter_num++
-    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-    current_title = $0
-    # Extract title after the number and colon
-    idx = index($0, ":")
-    if (idx > 0) {
-        current_chapter = tolower(substr($0, idx + 1))
-        gsub(/^[[:space:]]+/, "", current_chapter)
-    } else {
-        current_chapter = tolower($0)
-    }
-    gsub(/[^a-z0-9]+/, "-", current_chapter)
-    gsub(/^-+|-+$/, "", current_chapter)
-    current_content = ""
-    in_chapter = 1
-    next
-}
-
-# Accumulate content
 in_chapter {
-    current_content = current_content $0 "\n"
+    content = content $0 "\n"
 }
 
 END {
-    # Save last chapter
-    if (in_chapter && length(current_content) > 100) {
-        if (list_only == "true") {
-            printf "%02d: %s\n", chapter_num, current_title
+    if (in_chapter && length(content) > 100) {
+        gsub(/[^a-z0-9]+/, "-", slug)
+        gsub(/^-+|-+$/, "", slug)
+        if (LIST_ONLY == "true") {
+            printf "%02d: %s\n", chapter_num, title
         } else {
-            filename = sprintf("%s/%02d-%s.md", output_dir, chapter_num, current_chapter)
-            print "# " current_title "\n" > filename
-            print current_content >> filename
+            filename = sprintf("%s/%02d-%s.md", OUTDIR, chapter_num, slug)
+            print "# " title > filename
+            print "" >> filename
+            print content >> filename
             close(filename)
             print "Wrote: " filename
         }
     }
-    
-    if (list_only != "true") {
-        print "\nExtracted " chapter_num " chapters to " output_dir "/"
+    if (LIST_ONLY != "true") {
+        print "\nExtracted " chapter_num " chapters to " OUTDIR "/"
     }
 }
 ' "$INPUT"
-
-if [ "$LIST_ONLY" = "false" ]; then
-    mkdir -p "$OUTPUT_DIR"
-    # Re-run to actually create files (awk already did this but mkdir ensures dir exists)
-fi
