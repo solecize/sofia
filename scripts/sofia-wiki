@@ -1,0 +1,343 @@
+#!/bin/bash
+# sofia-wiki: Wiki management commands for story projects
+# Usage: sofia-wiki <command> [options]
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WIKI_ROOT="notes/wiki"
+CANON_ROOT="notes/canon"
+INCOMING_ROOT="notes/incoming"
+
+show_usage() {
+    echo "Usage: sofia-wiki <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  ingest <project> <manuscript>   Bulk import manuscript into wiki"
+    echo "  update <project> <notes...>     Add new notes to existing wiki"
+    echo "  sync <project>                  Review and resolve conflicts"
+    echo "  status <project>                Show wiki status and pending items"
+    echo "  extract <project> <chapter>     Generate LLM prompt for a chapter"
+    echo ""
+    echo "Options:"
+    echo "  --dry-run                       Show what would be done without doing it"
+    echo "  --no-commit                     Skip git commits"
+    echo ""
+    echo "Examples:"
+    echo "  sofia-wiki ingest error-correction manuscript.txt"
+    echo "  sofia-wiki update error-correction notes/new-note.md"
+    echo "  sofia-wiki sync error-correction"
+    echo "  sofia-wiki status error-correction"
+}
+
+# Ensure project wiki exists
+ensure_wiki() {
+    local project="$1"
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Creating wiki for project: $project"
+        mkdir -p "$wiki_dir"/{people,places,events,objects,ideas,chapters,.sofia}
+        
+        # Create config
+        cat > "$wiki_dir/.sofia/config.json" << EOF
+{
+  "version": "1.0",
+  "project": "$project",
+  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "settings": {
+    "autoExtract": true,
+    "conflictDetection": "automatic",
+    "chunkGranularity": "per-field",
+    "commitOnIngest": true,
+    "commitOnUpdate": true
+  }
+}
+EOF
+        
+        # Create empty metadata files
+        echo '{"version": "1.0", "entities": {}}' > "$wiki_dir/.sofia/entities.json"
+        echo '{"version": "1.0", "chunks": {}}' > "$wiki_dir/.sofia/chunks.json"
+        echo '{"version": "1.0", "conflicts": {}}' > "$wiki_dir/.sofia/conflicts.json"
+        echo '{"version": "1.0", "decisions": {}}' > "$wiki_dir/.sofia/decisions.json"
+        
+        echo "Wiki created at: $wiki_dir"
+    fi
+}
+
+# Ingest command: bulk import manuscript
+cmd_ingest() {
+    local project="$1"
+    local manuscript="$2"
+    local dry_run="$3"
+    local no_commit="$4"
+    
+    if [ -z "$project" ] || [ -z "$manuscript" ]; then
+        echo "Error: ingest requires <project> and <manuscript>"
+        echo "Usage: sofia-wiki ingest <project> <manuscript>"
+        exit 1
+    fi
+    
+    if [ ! -f "$manuscript" ]; then
+        echo "Error: Manuscript not found: $manuscript"
+        exit 1
+    fi
+    
+    echo "=== Sofia Wiki Ingest ==="
+    echo "Project: $project"
+    echo "Manuscript: $manuscript"
+    echo ""
+    
+    # Ensure wiki exists
+    ensure_wiki "$project"
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    
+    # Step 1: Split manuscript into chapters
+    echo "Step 1: Splitting manuscript into chapters..."
+    mkdir -p "$canon_dir"
+    
+    if [ "$dry_run" = "true" ]; then
+        echo "[DRY RUN] Would run: sofia-ingest \"$manuscript\" --output \"$canon_dir\""
+        "$SCRIPT_DIR/scripts/sofia-ingest" "$manuscript" --list
+    else
+        "$SCRIPT_DIR/scripts/sofia-ingest" "$manuscript" --output "$canon_dir"
+        
+        # Commit canon chapters
+        if [ "$no_commit" != "true" ]; then
+            echo ""
+            echo "Committing canon chapters..."
+            cd "$SCRIPT_DIR"
+            git add "$canon_dir"
+            git commit -m "sofia: ingest canon chapters for $project" || echo "Nothing to commit"
+        fi
+    fi
+    
+    # Step 2: Count chapters
+    local chapter_count=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    echo ""
+    echo "Step 2: Found $chapter_count chapters"
+    
+    # Step 3: Generate extraction prompts
+    echo ""
+    echo "Step 3: Entity extraction"
+    echo ""
+    echo "To extract entities from each chapter, run:"
+    echo ""
+    for chapter in "$canon_dir"/*.md; do
+        local basename=$(basename "$chapter" .md)
+        echo "  sofia-wiki extract $project $basename"
+    done | head -10
+    echo "  ..."
+    echo ""
+    echo "Or process all chapters:"
+    echo "  for ch in $canon_dir/*.md; do"
+    echo "    sofia-prompt -extract \"\$ch\" > /tmp/prompt.txt"
+    echo "    # Send to LLM, save response to wiki"
+    echo "  done"
+    echo ""
+    echo "=== Ingest Complete ==="
+    echo "Canon chapters: $canon_dir"
+    echo "Wiki directory: $wiki_dir"
+}
+
+# Extract command: generate LLM prompt for a chapter
+cmd_extract() {
+    local project="$1"
+    local chapter="$2"
+    
+    if [ -z "$project" ] || [ -z "$chapter" ]; then
+        echo "Error: extract requires <project> and <chapter>"
+        echo "Usage: sofia-wiki extract <project> <chapter>"
+        exit 1
+    fi
+    
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    local chapter_file="$canon_dir/$chapter.md"
+    
+    if [ ! -f "$chapter_file" ]; then
+        # Try without .md
+        chapter_file="$canon_dir/$chapter"
+        if [ ! -f "$chapter_file" ]; then
+            echo "Error: Chapter not found: $chapter"
+            echo "Available chapters:"
+            ls -1 "$canon_dir"/*.md 2>/dev/null | head -10
+            exit 1
+        fi
+    fi
+    
+    # Generate the extraction prompt
+    "$SCRIPT_DIR/scripts/sofia-prompt" -extract "$chapter_file"
+}
+
+# Status command: show wiki status
+cmd_status() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: status requires <project>"
+        echo "Usage: sofia-wiki status <project>"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    echo "=== Sofia Wiki Status: $project ==="
+    echo ""
+    
+    # Count items
+    local canon_chapters=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    local wiki_chapters=$(ls -1 "$wiki_dir/chapters"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local people=$(ls -1 "$wiki_dir/people"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local places=$(ls -1 "$wiki_dir/places"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local events=$(ls -1 "$wiki_dir/events"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local objects=$(ls -1 "$wiki_dir/objects"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local ideas=$(ls -1 "$wiki_dir/ideas"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    
+    echo "Canon chapters:  $canon_chapters"
+    echo "Wiki chapters:   $wiki_chapters / $canon_chapters"
+    echo ""
+    echo "Entities:"
+    echo "  People:  $people"
+    echo "  Places:  $places"
+    echo "  Events:  $events"
+    echo "  Objects: $objects"
+    echo "  Ideas:   $ideas"
+    echo ""
+    
+    # Check for conflicts
+    local conflicts=0
+    if [ -f "$wiki_dir/.sofia/conflicts.json" ]; then
+        conflicts=$(grep -c '"status": "unresolved"' "$wiki_dir/.sofia/conflicts.json" 2>/dev/null || true)
+        conflicts=${conflicts:-0}
+    fi
+    if [ "$conflicts" -gt 0 ] 2>/dev/null; then
+        echo "⚠️  Unresolved conflicts: $conflicts"
+        echo "   Run: sofia-wiki sync $project"
+    else
+        echo "✓ No unresolved conflicts"
+    fi
+    echo ""
+    
+    # Pending chapters
+    local pending=$((canon_chapters - wiki_chapters))
+    if [ "$pending" -gt 0 ]; then
+        echo "📝 Pending chapters: $pending"
+        local next_chapter=$(ls -1 "$canon_dir"/*.md 2>/dev/null | head -1 | xargs -I{} basename {} .md)
+        echo "   Next: sofia-wiki extract $project $next_chapter"
+    fi
+}
+
+# Sync command: review and resolve conflicts
+cmd_sync() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: sync requires <project>"
+        echo "Usage: sofia-wiki sync <project>"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    echo "=== Sofia Wiki Sync: $project ==="
+    echo ""
+    
+    local conflicts_file="$wiki_dir/.sofia/conflicts.json"
+    local conflicts=$(cat "$conflicts_file" 2>/dev/null | grep -c '"status": "unresolved"' || echo "0")
+    
+    if [ "$conflicts" -eq 0 ]; then
+        echo "✓ No unresolved conflicts"
+        echo ""
+        echo "Wiki is in sync."
+    else
+        echo "Found $conflicts unresolved conflicts:"
+        echo ""
+        # Would list conflicts here
+        cat "$conflicts_file" | grep -A5 '"status": "unresolved"' || true
+        echo ""
+        echo "To resolve conflicts, edit the wiki pages directly and run:"
+        echo "  sofia-wiki sync $project --resolve"
+    fi
+}
+
+# Parse arguments
+COMMAND=""
+PROJECT=""
+MANUSCRIPT=""
+DRY_RUN="false"
+NO_COMMIT="false"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        --no-commit)
+            NO_COMMIT="true"
+            shift
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        ingest|update|sync|status|extract)
+            COMMAND="$1"
+            shift
+            ;;
+        *)
+            if [ -z "$PROJECT" ]; then
+                PROJECT="$1"
+            elif [ -z "$MANUSCRIPT" ]; then
+                MANUSCRIPT="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$COMMAND" ]; then
+    show_usage
+    exit 1
+fi
+
+# Change to script directory for relative paths
+cd "$SCRIPT_DIR"
+
+case "$COMMAND" in
+    ingest)
+        cmd_ingest "$PROJECT" "$MANUSCRIPT" "$DRY_RUN" "$NO_COMMIT"
+        ;;
+    extract)
+        cmd_extract "$PROJECT" "$MANUSCRIPT"
+        ;;
+    status)
+        cmd_status "$PROJECT"
+        ;;
+    sync)
+        cmd_sync "$PROJECT"
+        ;;
+    update)
+        echo "Update command not yet implemented"
+        echo "For now, use: sofia-prompt -extract <note.md> | pbcopy"
+        exit 1
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        show_usage
+        exit 1
+        ;;
+esac
