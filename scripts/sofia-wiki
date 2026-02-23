@@ -285,6 +285,93 @@ for c in data.get('conflicts', []):
     fi
 }
 
+# Bulk analyze command: interactive LLM-in-the-loop processing
+cmd_bulk_analyze() {
+    local project="$1"
+    local start_chapter="$2"
+    
+    if [ -z "$project" ]; then
+        echo "Error: bulk-analyze requires <project>"
+        echo "Usage: sofia-wiki bulk-analyze <project> [start_chapter]"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    if [ ! -d "$canon_dir" ]; then
+        echo "Error: Canon chapters not found: $canon_dir"
+        exit 1
+    fi
+    
+    # Get list of pending chapters
+    local pending_chapters=()
+    local total=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    
+    for chapter_file in "$canon_dir"/*.md; do
+        local basename=$(basename "$chapter_file" .md)
+        local wiki_chapter="$wiki_dir/chapters/$basename.md"
+        
+        # Skip if wiki chapter already exists
+        if [ ! -f "$wiki_chapter" ]; then
+            pending_chapters+=("$basename")
+        fi
+    done
+    
+    local pending_count=${#pending_chapters[@]}
+    
+    echo "========================================"
+    echo "SOFIA BULK ANALYZE: $project"
+    echo "========================================"
+    echo ""
+    echo "Total chapters: $total"
+    echo "Pending: $pending_count"
+    echo "Already processed: $((total - pending_count))"
+    echo ""
+    
+    if [ "$pending_count" -eq 0 ]; then
+        echo "✓ All chapters have been analyzed!"
+        echo ""
+        echo "Run 'sofia-wiki status $project' to see entity counts."
+        return 0
+    fi
+    
+    echo "Pending chapters:"
+    local i=1
+    for ch in "${pending_chapters[@]}"; do
+        echo "  $i. $ch"
+        i=$((i + 1))
+    done
+    echo ""
+    echo "========================================"
+    echo "READY FOR ANALYSIS"
+    echo "========================================"
+    echo ""
+    echo "To analyze the next chapter, run:"
+    echo ""
+    echo "  ./scripts/sofia-wiki extract $project ${pending_chapters[0]}"
+    echo ""
+    echo "This will output the extraction prompt. After you (the LLM) process it,"
+    echo "save the response to:"
+    echo ""
+    echo "  $wiki_dir/chapters/${pending_chapters[0]}.md"
+    echo ""
+    echo "Then run this command again to continue with the next chapter."
+    echo ""
+    echo "========================================"
+    echo "EXTRACTION PROMPT FOR: ${pending_chapters[0]}"
+    echo "========================================"
+    echo ""
+    
+    # Output the actual prompt for the first pending chapter
+    "$SCRIPT_DIR/scripts/sofia-prompt" -extract "$canon_dir/${pending_chapters[0]}.md"
+}
+
 # Bulk extract command: generate prompts for all pending chapters
 cmd_bulk_extract() {
     local project="$1"
@@ -541,7 +628,7 @@ while [ $# -gt 0 ]; do
             show_usage
             exit 0
             ;;
-        ingest|update|sync|status|extract|resolve|bulk-extract)
+        ingest|update|sync|status|extract|resolve|bulk-extract|bulk-analyze)
             COMMAND="$1"
             shift
             ;;
@@ -586,6 +673,9 @@ case "$COMMAND" in
         ;;
     bulk-extract)
         cmd_bulk_extract "$PROJECT" "$ARG2" "$DRY_RUN"
+        ;;
+    bulk-analyze)
+        cmd_bulk_analyze "$PROJECT" "$ARG2"
         ;;
     update)
         cmd_update "$PROJECT" "$ARG2" "$DRY_RUN" "$NO_COMMIT"
