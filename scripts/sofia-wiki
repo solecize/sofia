@@ -285,6 +285,84 @@ for c in data.get('conflicts', []):
     fi
 }
 
+# Update command: add new notes/chapters with LLM extraction
+cmd_update() {
+    local project="$1"
+    local note_path="$2"
+    local dry_run="$3"
+    local no_commit="$4"
+    
+    if [ -z "$project" ] || [ -z "$note_path" ]; then
+        echo "Error: update requires <project> and <note>"
+        echo "Usage: sofia-wiki update <project> <note.md>"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        echo "Run 'sofia-wiki ingest $project <manuscript>' first"
+        exit 1
+    fi
+    
+    if [ ! -f "$note_path" ]; then
+        echo "Error: Note not found: $note_path"
+        exit 1
+    fi
+    
+    echo "=== Sofia Wiki Update: $project ==="
+    echo ""
+    echo "Note: $note_path"
+    echo ""
+    
+    # Step 1: Commit the incoming note
+    if [ "$no_commit" != "true" ] && [ "$dry_run" != "true" ]; then
+        echo "Step 1: Committing incoming note..."
+        git add "$note_path" 2>/dev/null || true
+        git commit -m "sofia: add incoming note $(basename "$note_path")" 2>/dev/null || echo "  (already committed or no changes)"
+        echo ""
+    fi
+    
+    # Step 2: Generate extraction prompt
+    echo "Step 2: Generating extraction prompt..."
+    echo ""
+    
+    local prompt_file="/tmp/sofia-update-prompt-$$.txt"
+    "$SCRIPT_DIR/scripts/sofia-prompt" -extract "$note_path" > "$prompt_file"
+    
+    echo "Prompt saved to: $prompt_file"
+    echo "Word count: $(wc -w < "$prompt_file" | tr -d ' ')"
+    echo ""
+    
+    # Step 3: Instructions for user
+    echo "Step 3: Send to LLM"
+    echo ""
+    echo "Option A - Copy to clipboard:"
+    echo "  cat $prompt_file | pbcopy"
+    echo ""
+    echo "Option B - View prompt:"
+    echo "  cat $prompt_file"
+    echo ""
+    echo "Step 4: After LLM responds, save entities to wiki:"
+    echo "  - Create/update wiki pages in $wiki_dir/people/, places/, etc."
+    echo "  - Run: sofia-wiki sync $project"
+    echo ""
+    
+    # Offer to copy to clipboard
+    if command -v pbcopy &> /dev/null; then
+        echo "Copy prompt to clipboard now? [y/N]"
+        read -r response
+        if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
+            cat "$prompt_file" | pbcopy
+            echo "✓ Prompt copied to clipboard"
+        fi
+    fi
+    
+    echo ""
+    echo "=== Update prepared ==="
+}
+
 # Resolve command: resolve a specific conflict
 cmd_resolve() {
     local project="$1"
@@ -414,9 +492,7 @@ case "$COMMAND" in
         cmd_resolve "$PROJECT" "$ARG2" "$ARG3" "$ARG4"
         ;;
     update)
-        echo "Update command not yet implemented"
-        echo "For now, use: sofia-prompt -extract <note.md> | pbcopy"
-        exit 1
+        cmd_update "$PROJECT" "$ARG2" "$DRY_RUN" "$NO_COMMIT"
         ;;
     *)
         echo "Unknown command: $COMMAND"
