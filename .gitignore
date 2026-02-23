@@ -24,6 +24,9 @@ notes/incoming/notes-download-*/
 
 # Manuscript files (large, user-specific)
 notes/incoming/error-correction-current-draft/
+
+# Generated prompts (can be regenerated)
+notes/wiki/*/prompts/
 *.scriv/
 *.scrivx
 *.dat

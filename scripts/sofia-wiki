@@ -285,6 +285,99 @@ for c in data.get('conflicts', []):
     fi
 }
 
+# Bulk extract command: generate prompts for all pending chapters
+cmd_bulk_extract() {
+    local project="$1"
+    local output_dir="$2"
+    local dry_run="$3"
+    
+    if [ -z "$project" ]; then
+        echo "Error: bulk-extract requires <project>"
+        echo "Usage: sofia-wiki bulk-extract <project> [output_dir]"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    if [ ! -d "$canon_dir" ]; then
+        echo "Error: Canon chapters not found: $canon_dir"
+        exit 1
+    fi
+    
+    # Default output directory
+    if [ -z "$output_dir" ]; then
+        output_dir="$wiki_dir/prompts"
+    fi
+    
+    echo "=== Sofia Wiki Bulk Extract: $project ==="
+    echo ""
+    
+    # Create output directory
+    mkdir -p "$output_dir"
+    
+    # Count chapters
+    local total=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    local processed=0
+    local skipped=0
+    
+    echo "Canon chapters: $total"
+    echo "Output directory: $output_dir"
+    echo ""
+    
+    # Process each chapter
+    for chapter_file in "$canon_dir"/*.md; do
+        local basename=$(basename "$chapter_file" .md)
+        local prompt_file="$output_dir/$basename-prompt.txt"
+        local wiki_chapter="$wiki_dir/chapters/$basename.md"
+        
+        # Skip if wiki chapter already exists (already processed)
+        if [ -f "$wiki_chapter" ]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
+        
+        if [ "$dry_run" = "true" ]; then
+            echo "[DRY RUN] Would generate: $prompt_file"
+        else
+            echo "Generating: $basename..."
+            "$SCRIPT_DIR/scripts/sofia-prompt" -extract "$chapter_file" > "$prompt_file"
+        fi
+        
+        processed=$((processed + 1))
+    done
+    
+    echo ""
+    echo "=== Bulk Extract Complete ==="
+    echo "Generated: $processed prompts"
+    echo "Skipped (already in wiki): $skipped"
+    echo ""
+    
+    if [ "$processed" -gt 0 ]; then
+        echo "Prompts saved to: $output_dir/"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Send each prompt to your LLM"
+        echo "  2. Save responses as wiki chapter pages"
+        echo "  3. Run: sofia-wiki sync $project"
+        echo ""
+        echo "Batch processing options:"
+        echo "  - Concatenate prompts: cat $output_dir/*-prompt.txt > all-prompts.txt"
+        echo "  - Process with API: for f in $output_dir/*-prompt.txt; do ... done"
+        echo ""
+        
+        # Calculate total word count
+        local total_words=$(cat "$output_dir"/*-prompt.txt 2>/dev/null | wc -w | tr -d ' ')
+        echo "Total words across all prompts: $total_words"
+        echo "Estimated tokens: ~$((total_words * 4 / 3))"
+    fi
+}
+
 # Update command: add new notes/chapters with LLM extraction
 cmd_update() {
     local project="$1"
@@ -448,7 +541,7 @@ while [ $# -gt 0 ]; do
             show_usage
             exit 0
             ;;
-        ingest|update|sync|status|extract|resolve)
+        ingest|update|sync|status|extract|resolve|bulk-extract)
             COMMAND="$1"
             shift
             ;;
@@ -490,6 +583,9 @@ case "$COMMAND" in
         ;;
     resolve)
         cmd_resolve "$PROJECT" "$ARG2" "$ARG3" "$ARG4"
+        ;;
+    bulk-extract)
+        cmd_bulk_extract "$PROJECT" "$ARG2" "$DRY_RUN"
         ;;
     update)
         cmd_update "$PROJECT" "$ARG2" "$DRY_RUN" "$NO_COMMIT"
