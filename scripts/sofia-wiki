@@ -255,28 +255,104 @@ cmd_sync() {
     echo "=== Sofia Wiki Sync: $project ==="
     echo ""
     
-    local conflicts_file="$wiki_dir/.sofia/conflicts.json"
-    local conflicts=$(cat "$conflicts_file" 2>/dev/null | grep -c '"status": "unresolved"' || echo "0")
+    # Use the database to get conflicts
+    local conflicts_json=$("$SCRIPT_DIR/scripts/sofia-wiki-db" list-conflicts "$wiki_dir")
+    local conflict_count=$(echo "$conflicts_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('conflicts',[])))" 2>/dev/null || echo 0)
     
-    if [ "$conflicts" -eq 0 ]; then
+    if [ "$conflict_count" = "0" ]; then
         echo "✓ No unresolved conflicts"
         echo ""
         echo "Wiki is in sync."
     else
-        echo "Found $conflicts unresolved conflicts:"
+        echo "Found $conflict_count unresolved conflict(s):"
         echo ""
-        # Would list conflicts here
-        cat "$conflicts_file" | grep -A5 '"status": "unresolved"' || true
+        
+        # Parse and display each conflict
+        echo "$conflicts_json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for c in data.get('conflicts', []):
+    print(f\"  [{c['id']}] {c['entity']} → {c['field']}\")
+    print(f\"    Existing: {c['existing_chunk']}\")
+    print(f\"    New:      {c['new_chunk']}\")
+    print()
+"
+        echo "To resolve a conflict:"
+        echo "  sofia-wiki resolve $project <conflict_id> <keep|new> [reason]"
         echo ""
-        echo "To resolve conflicts, edit the wiki pages directly and run:"
-        echo "  sofia-wiki sync $project --resolve"
+        echo "To view chunk contents:"
+        echo "  cat $wiki_dir/.sofia/chunks.json | jq '.chunks[\"<chunk_id>\"]'"
     fi
+}
+
+# Resolve command: resolve a specific conflict
+cmd_resolve() {
+    local project="$1"
+    local conflict_id="$2"
+    local choice="$3"
+    local reason="$4"
+    
+    if [ -z "$project" ] || [ -z "$conflict_id" ] || [ -z "$choice" ]; then
+        echo "Error: resolve requires <project> <conflict_id> <keep|new>"
+        echo "Usage: sofia-wiki resolve <project> <conflict_id> <keep|new> [reason]"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    # Get conflict details
+    local conflicts_json=$("$SCRIPT_DIR/scripts/sofia-wiki-db" list-conflicts "$wiki_dir")
+    local existing_chunk=$(echo "$conflicts_json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for c in data.get('conflicts', []):
+    if c['id'] == '$conflict_id':
+        print(c['existing_chunk'])
+        break
+")
+    local new_chunk=$(echo "$conflicts_json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for c in data.get('conflicts', []):
+    if c['id'] == '$conflict_id':
+        print(c['new_chunk'])
+        break
+")
+    
+    if [ -z "$existing_chunk" ]; then
+        echo "Error: Conflict not found: $conflict_id"
+        exit 1
+    fi
+    
+    # Determine which chunk to keep
+    local chosen_chunk
+    case "$choice" in
+        keep|existing|old)
+            chosen_chunk="$existing_chunk"
+            ;;
+        new|incoming)
+            chosen_chunk="$new_chunk"
+            ;;
+        *)
+            echo "Error: choice must be 'keep' or 'new'"
+            exit 1
+            ;;
+    esac
+    
+    # Resolve the conflict
+    local result=$("$SCRIPT_DIR/scripts/sofia-wiki-db" resolve-conflict "$wiki_dir" "$conflict_id" "$chosen_chunk" "$reason")
+    echo "$result"
+    
+    echo ""
+    echo "Conflict resolved. Run 'sofia-wiki sync $project' to verify."
 }
 
 # Parse arguments
 COMMAND=""
 PROJECT=""
-MANUSCRIPT=""
+ARG2=""
+ARG3=""
+ARG4=""
 DRY_RUN="false"
 NO_COMMIT="false"
 
@@ -294,15 +370,19 @@ while [ $# -gt 0 ]; do
             show_usage
             exit 0
             ;;
-        ingest|update|sync|status|extract)
+        ingest|update|sync|status|extract|resolve)
             COMMAND="$1"
             shift
             ;;
         *)
             if [ -z "$PROJECT" ]; then
                 PROJECT="$1"
-            elif [ -z "$MANUSCRIPT" ]; then
-                MANUSCRIPT="$1"
+            elif [ -z "$ARG2" ]; then
+                ARG2="$1"
+            elif [ -z "$ARG3" ]; then
+                ARG3="$1"
+            elif [ -z "$ARG4" ]; then
+                ARG4="$1"
             fi
             shift
             ;;
@@ -319,16 +399,19 @@ cd "$SCRIPT_DIR"
 
 case "$COMMAND" in
     ingest)
-        cmd_ingest "$PROJECT" "$MANUSCRIPT" "$DRY_RUN" "$NO_COMMIT"
+        cmd_ingest "$PROJECT" "$ARG2" "$DRY_RUN" "$NO_COMMIT"
         ;;
     extract)
-        cmd_extract "$PROJECT" "$MANUSCRIPT"
+        cmd_extract "$PROJECT" "$ARG2"
         ;;
     status)
         cmd_status "$PROJECT"
         ;;
     sync)
         cmd_sync "$PROJECT"
+        ;;
+    resolve)
+        cmd_resolve "$PROJECT" "$ARG2" "$ARG3" "$ARG4"
         ;;
     update)
         echo "Update command not yet implemented"

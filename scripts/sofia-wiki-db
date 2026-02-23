@@ -1,0 +1,378 @@
+#!/usr/bin/env python3
+"""
+sofia-wiki-db: Database operations for sofia wiki metadata
+Handles entity registration, chunk management, and conflict detection
+"""
+
+import json
+import os
+import sys
+import hashlib
+from datetime import datetime
+from pathlib import Path
+
+def load_json(path):
+    """Load JSON file, return empty structure if missing"""
+    if os.path.exists(path):
+        with open(path, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_json(path, data):
+    """Save JSON file with pretty formatting"""
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def generate_chunk_id(entity_id, field, content):
+    """Generate deterministic chunk ID from content"""
+    hash_input = f"{entity_id}:{field}:{content}"
+    return "chunk-" + hashlib.sha256(hash_input.encode()).hexdigest()[:12]
+
+def generate_conflict_id():
+    """Generate unique conflict ID"""
+    return "conflict-" + hashlib.sha256(datetime.utcnow().isoformat().encode()).hexdigest()[:8]
+
+class WikiDB:
+    def __init__(self, wiki_dir):
+        self.wiki_dir = Path(wiki_dir)
+        self.sofia_dir = self.wiki_dir / ".sofia"
+        
+        self.entities_path = self.sofia_dir / "entities.json"
+        self.chunks_path = self.sofia_dir / "chunks.json"
+        self.conflicts_path = self.sofia_dir / "conflicts.json"
+        self.decisions_path = self.sofia_dir / "decisions.json"
+        
+        self.entities = load_json(self.entities_path)
+        self.chunks = load_json(self.chunks_path)
+        self.conflicts = load_json(self.conflicts_path)
+        self.decisions = load_json(self.decisions_path)
+        
+        # Ensure structure
+        if "entities" not in self.entities:
+            self.entities = {"version": "1.0", "entities": {}}
+        if "chunks" not in self.chunks:
+            self.chunks = {"version": "1.0", "chunks": {}}
+        if "conflicts" not in self.conflicts:
+            self.conflicts = {"version": "1.0", "conflicts": {}}
+        if "decisions" not in self.decisions:
+            self.decisions = {"version": "1.0", "decisions": {}}
+    
+    def save(self):
+        """Save all metadata files"""
+        save_json(self.entities_path, self.entities)
+        save_json(self.chunks_path, self.chunks)
+        save_json(self.conflicts_path, self.conflicts)
+        save_json(self.decisions_path, self.decisions)
+    
+    def add_entity(self, entity_id, name, entity_type, aliases=None):
+        """Add or update an entity"""
+        now = datetime.utcnow().isoformat() + "Z"
+        
+        if entity_id in self.entities["entities"]:
+            # Update existing
+            self.entities["entities"][entity_id]["modified"] = now
+            if aliases:
+                existing = set(self.entities["entities"][entity_id].get("aliases", []))
+                existing.update(aliases)
+                self.entities["entities"][entity_id]["aliases"] = list(existing)
+        else:
+            # Create new
+            self.entities["entities"][entity_id] = {
+                "id": entity_id,
+                "name": name,
+                "aliases": aliases or [],
+                "type": entity_type,
+                "created": now,
+                "modified": now,
+                "sources": [],
+                "fields": {},
+                "links": {
+                    "people": [],
+                    "places": [],
+                    "objects": [],
+                    "events": [],
+                    "ideas": []
+                }
+            }
+        
+        return self.entities["entities"][entity_id]
+    
+    def add_chunk(self, entity_id, field, content, source_type, source_ref):
+        """Add a chunk and detect conflicts"""
+        now = datetime.utcnow().isoformat() + "Z"
+        chunk_id = generate_chunk_id(entity_id, field, content)
+        
+        # Check if this exact chunk already exists
+        if chunk_id in self.chunks["chunks"]:
+            return {"status": "exists", "chunk_id": chunk_id}
+        
+        # Check for existing active chunk on this field
+        entity = self.entities["entities"].get(entity_id)
+        if not entity:
+            return {"status": "error", "message": f"Entity not found: {entity_id}"}
+        
+        existing_chunk_id = entity.get("fields", {}).get(field, {}).get("active")
+        conflict_id = None
+        
+        if existing_chunk_id and existing_chunk_id in self.chunks["chunks"]:
+            existing_chunk = self.chunks["chunks"][existing_chunk_id]
+            existing_content = existing_chunk.get("content", "")
+            
+            # Simple conflict detection: different content for same field
+            if existing_content.strip() != content.strip():
+                conflict_id = generate_conflict_id()
+                self.conflicts["conflicts"][conflict_id] = {
+                    "id": conflict_id,
+                    "entity": entity_id,
+                    "field": field,
+                    "existing_chunk": existing_chunk_id,
+                    "new_chunk": chunk_id,
+                    "status": "unresolved",
+                    "detected": now
+                }
+                
+                # Mark new chunk as conflict
+                status = "conflict"
+            else:
+                # Same content, no conflict
+                return {"status": "duplicate", "chunk_id": existing_chunk_id}
+        else:
+            status = "active"
+        
+        # Create the chunk
+        self.chunks["chunks"][chunk_id] = {
+            "id": chunk_id,
+            "entity": entity_id,
+            "field": field,
+            "content": content,
+            "source": {"type": source_type, "ref": source_ref},
+            "created": now,
+            "status": status
+        }
+        
+        # Update entity field reference (only if no conflict)
+        if status == "active":
+            if "fields" not in entity:
+                entity["fields"] = {}
+            if field not in entity["fields"]:
+                entity["fields"][field] = {"active": None, "history": []}
+            
+            # Move current active to history
+            if entity["fields"][field]["active"]:
+                entity["fields"][field]["history"].append(entity["fields"][field]["active"])
+            
+            entity["fields"][field]["active"] = chunk_id
+        
+        # Add source reference
+        source_entry = {"type": source_type, "ref": source_ref, "extracted": now}
+        if source_entry not in entity.get("sources", []):
+            entity.setdefault("sources", []).append(source_entry)
+        
+        result = {"status": status, "chunk_id": chunk_id}
+        if conflict_id:
+            result["conflict_id"] = conflict_id
+        
+        return result
+    
+    def add_link(self, entity_id, link_type, target_id):
+        """Add a link between entities"""
+        entity = self.entities["entities"].get(entity_id)
+        if not entity:
+            return False
+        
+        if link_type not in entity["links"]:
+            entity["links"][link_type] = []
+        
+        if target_id not in entity["links"][link_type]:
+            entity["links"][link_type].append(target_id)
+        
+        return True
+    
+    def resolve_conflict(self, conflict_id, chosen_chunk_id, reason=""):
+        """Resolve a conflict by choosing a chunk"""
+        now = datetime.utcnow().isoformat() + "Z"
+        
+        conflict = self.conflicts["conflicts"].get(conflict_id)
+        if not conflict:
+            return {"status": "error", "message": f"Conflict not found: {conflict_id}"}
+        
+        if conflict["status"] != "unresolved":
+            return {"status": "error", "message": f"Conflict already resolved"}
+        
+        # Determine which chunk was rejected
+        if chosen_chunk_id == conflict["existing_chunk"]:
+            rejected_chunk_id = conflict["new_chunk"]
+        elif chosen_chunk_id == conflict["new_chunk"]:
+            rejected_chunk_id = conflict["existing_chunk"]
+        else:
+            return {"status": "error", "message": f"Invalid chunk choice"}
+        
+        # Update chunk statuses
+        self.chunks["chunks"][chosen_chunk_id]["status"] = "active"
+        self.chunks["chunks"][rejected_chunk_id]["status"] = "rejected"
+        
+        # Update entity field
+        entity = self.entities["entities"].get(conflict["entity"])
+        if entity:
+            field = conflict["field"]
+            if field in entity.get("fields", {}):
+                # Move rejected to history
+                if rejected_chunk_id not in entity["fields"][field]["history"]:
+                    entity["fields"][field]["history"].append(rejected_chunk_id)
+                entity["fields"][field]["active"] = chosen_chunk_id
+        
+        # Record decision
+        decision_id = "decision-" + conflict_id.replace("conflict-", "")
+        self.decisions["decisions"][decision_id] = {
+            "id": decision_id,
+            "conflict": conflict_id,
+            "chosen": chosen_chunk_id,
+            "rejected": [rejected_chunk_id],
+            "reason": reason,
+            "decided": now,
+            "decidedBy": "user"
+        }
+        
+        # Mark conflict as resolved
+        conflict["status"] = "resolved"
+        conflict["resolved"] = now
+        conflict["decision"] = decision_id
+        
+        return {"status": "resolved", "decision_id": decision_id}
+    
+    def get_unresolved_conflicts(self):
+        """Get all unresolved conflicts"""
+        return [c for c in self.conflicts["conflicts"].values() 
+                if c.get("status") == "unresolved"]
+    
+    def get_entity_summary(self, entity_id):
+        """Get summary of an entity with active chunks"""
+        entity = self.entities["entities"].get(entity_id)
+        if not entity:
+            return None
+        
+        summary = {
+            "id": entity_id,
+            "name": entity["name"],
+            "type": entity["type"],
+            "fields": {}
+        }
+        
+        for field, field_data in entity.get("fields", {}).items():
+            active_chunk_id = field_data.get("active")
+            if active_chunk_id and active_chunk_id in self.chunks["chunks"]:
+                summary["fields"][field] = self.chunks["chunks"][active_chunk_id]["content"]
+        
+        return summary
+
+
+def cmd_add_entity(args):
+    """Add an entity: add-entity <wiki_dir> <entity_id> <name> <type> [aliases...]"""
+    if len(args) < 4:
+        print("Usage: sofia-wiki-db add-entity <wiki_dir> <entity_id> <name> <type> [aliases...]")
+        sys.exit(1)
+    
+    wiki_dir, entity_id, name, entity_type = args[:4]
+    aliases = args[4:] if len(args) > 4 else []
+    
+    db = WikiDB(wiki_dir)
+    entity = db.add_entity(entity_id, name, entity_type, aliases)
+    db.save()
+    
+    print(json.dumps({"status": "ok", "entity": entity}, indent=2))
+
+
+def cmd_add_chunk(args):
+    """Add a chunk: add-chunk <wiki_dir> <entity_id> <field> <source_type> <source_ref> <content>"""
+    if len(args) < 6:
+        print("Usage: sofia-wiki-db add-chunk <wiki_dir> <entity_id> <field> <source_type> <source_ref> <content>")
+        sys.exit(1)
+    
+    wiki_dir, entity_id, field, source_type, source_ref = args[:5]
+    content = args[5]
+    
+    db = WikiDB(wiki_dir)
+    result = db.add_chunk(entity_id, field, content, source_type, source_ref)
+    db.save()
+    
+    print(json.dumps(result, indent=2))
+
+
+def cmd_list_conflicts(args):
+    """List unresolved conflicts: list-conflicts <wiki_dir>"""
+    if len(args) < 1:
+        print("Usage: sofia-wiki-db list-conflicts <wiki_dir>")
+        sys.exit(1)
+    
+    wiki_dir = args[0]
+    db = WikiDB(wiki_dir)
+    conflicts = db.get_unresolved_conflicts()
+    
+    print(json.dumps({"conflicts": conflicts}, indent=2))
+
+
+def cmd_resolve_conflict(args):
+    """Resolve a conflict: resolve-conflict <wiki_dir> <conflict_id> <chosen_chunk_id> [reason]"""
+    if len(args) < 3:
+        print("Usage: sofia-wiki-db resolve-conflict <wiki_dir> <conflict_id> <chosen_chunk_id> [reason]")
+        sys.exit(1)
+    
+    wiki_dir, conflict_id, chosen_chunk_id = args[:3]
+    reason = args[3] if len(args) > 3 else ""
+    
+    db = WikiDB(wiki_dir)
+    result = db.resolve_conflict(conflict_id, chosen_chunk_id, reason)
+    db.save()
+    
+    print(json.dumps(result, indent=2))
+
+
+def cmd_get_entity(args):
+    """Get entity summary: get-entity <wiki_dir> <entity_id>"""
+    if len(args) < 2:
+        print("Usage: sofia-wiki-db get-entity <wiki_dir> <entity_id>")
+        sys.exit(1)
+    
+    wiki_dir, entity_id = args[:2]
+    db = WikiDB(wiki_dir)
+    summary = db.get_entity_summary(entity_id)
+    
+    if summary:
+        print(json.dumps(summary, indent=2))
+    else:
+        print(json.dumps({"error": f"Entity not found: {entity_id}"}))
+        sys.exit(1)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: sofia-wiki-db <command> [args...]")
+        print("")
+        print("Commands:")
+        print("  add-entity <wiki_dir> <entity_id> <name> <type> [aliases...]")
+        print("  add-chunk <wiki_dir> <entity_id> <field> <source_type> <source_ref> <content>")
+        print("  list-conflicts <wiki_dir>")
+        print("  resolve-conflict <wiki_dir> <conflict_id> <chosen_chunk_id> [reason]")
+        print("  get-entity <wiki_dir> <entity_id>")
+        sys.exit(1)
+    
+    command = sys.argv[1]
+    args = sys.argv[2:]
+    
+    commands = {
+        "add-entity": cmd_add_entity,
+        "add-chunk": cmd_add_chunk,
+        "list-conflicts": cmd_list_conflicts,
+        "resolve-conflict": cmd_resolve_conflict,
+        "get-entity": cmd_get_entity,
+    }
+    
+    if command in commands:
+        commands[command](args)
+    else:
+        print(f"Unknown command: {command}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
