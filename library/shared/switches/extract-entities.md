@@ -86,9 +86,9 @@ Extract entities in these categories:
 - **Manifestation**: [how it appears in this chapter]
 
 ## Connections
-- [[people/character-name]] appears at [[places/location-name]]
-- [[events/event-name]] involves [[objects/object-name]]
-- [List key relationships between entities using wiki-link format]
+- [people/character-name](../people/character-name.md) appears at [places/location-name](../places/location-name.md)
+- [events/event-name](../events/event-name.md) involves [objects/object-name](../objects/object-name.md)
+- [List key relationships between entities using relative Markdown links]
 ```
 
 ## Guidelines
@@ -97,8 +97,8 @@ Extract entities in these categories:
 2. **Use consistent naming** - Same character should have same name across chapters
 3. **Note first appearances** - Mark if this is the first time an entity appears
 4. **Capture relationships** - How entities connect to each other
-5. **Wiki-link format** - Use `[[category/entity-name]]` for cross-references
-6. **Kebab-case for links** - `[[people/simon-wilde]]` not `[[people/Simon Wilde]]`
+5. **Relative Markdown links** - Use `[display-text](../category/entity-name.md)` for cross-references
+6. **Kebab-case for filenames** - `[Simon Wilde](../people/simon-wilde.md)` not `simon wilde`
 
 ## Example
 
@@ -115,19 +115,19 @@ Simon Wilde, a journalist working undercover at the Commission on Reintegration 
 ### Simon Wilde
 - **Role**: Protagonist
 - **Description**: Journalist in his late 20s, cynical, methodical. Uses pseudonyms Derek Lowell (at C.R.E.) and Melvin Bryant (for payments).
-- **Relationships**: Partner with [[people/mike-rich]], worked at [[places/urban-buzz]]
+- **Relationships**: Partner with [Mike Rich](../people/mike-rich.md), worked at [Urban Buzz](../places/urban-buzz.md)
 - **In this chapter**: Executing final data theft, reflecting on his mission
 
 ### Mike Rich (Michael Paul Rich)
 - **Role**: Supporting (mentor)
 - **Description**: Grumpy, greedy, old. Seasoned political journalist, Pol Editor at Urban Buzz. "Three first names."
-- **Relationships**: Mentor to [[people/simon-wilde]], helped fake his identity
+- **Relationships**: Mentor to [Simon Wilde](../people/simon-wilde.md), helped fake his identity
 - **In this chapter**: Referenced as co-conspirator, not physically present
 
 ### Reiss Vogel
 - **Role**: Antagonist (indirect)
 - **Description**: Chief of Staff at C.R.E., modern business aristocrat, Society member. Left wife and Society ventures to work for Exodites.
-- **Relationships**: Unknowingly trusts [[people/simon-wilde]], estranged from wife
+- **Relationships**: Unknowingly trusts [Simon Wilde](../people/simon-wilde.md), estranged from wife
 - **In this chapter**: Mentioned as Simon's unwitting enabler
 
 ## Places
@@ -146,7 +146,7 @@ Simon Wilde, a journalist working undercover at the Commission on Reintegration 
 
 ### The Data Theft (current)
 - **When**: During chapter
-- **Participants**: [[people/simon-wilde]]
+- **Participants**: [Simon Wilde](../people/simon-wilde.md)
 - **What happens**: Simon uses InfoRat tools to copy Exodite financial and political data
 - **Consequences**: Will expose Exodite fraud, end Simon's cover
 
@@ -167,7 +167,7 @@ Simon Wilde, a journalist working undercover at the Commission on Reintegration 
 ### InfoRat Tools
 - **Type**: Technology (hacking software)
 - **Description**: Programs for searching and copying files
-- **Owner/User**: [[people/simon-wilde]]
+- **Owner/User**: [Simon Wilde](../people/simon-wilde.md)
 - **Significance**: Illegal possession; key to the heist
 
 ## Ideas
@@ -183,9 +183,9 @@ Simon Wilde, a journalist working undercover at the Commission on Reintegration 
 - **Manifestation**: Reiss Vogel is Society; C.R.E. staffed by Society Kids
 
 ## Connections
-- [[people/simon-wilde]] infiltrated [[places/cre]] to expose [[people/reiss-vogel]]
-- [[objects/stac]] enables [[events/data-theft]]
-- [[ideas/society]] conflicts with [[ideas/144-voting-block]]
+- [Simon Wilde](../people/simon-wilde.md) infiltrated [C.R.E.](../places/cre.md) to expose [Reiss Vogel](../people/reiss-vogel.md)
+- [STAC](../objects/stac.md) enables [Data Theft](../events/data-theft.md)
+- [Society](../ideas/society.md) conflicts with [144 Voting Block](../ideas/144-voting-block.md)
 ```
 
 ---
