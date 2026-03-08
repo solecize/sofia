@@ -93,11 +93,14 @@ show_usage() {
     echo "  entities <project>              List known entity names"
     echo "  validate <project> [chapter]    Validate entity naming consistency"
     echo "  align <project> <old> <new>     Align entity name variants"
+    echo "  deprecate <project> <old>       Register old name for auto-alignment"
     echo ""
     echo "Options:"
     echo "  --json                          Output JSON instruction blocks"
     echo "  --dry-run                       Show what would be done without doing it"
     echo "  --no-commit                     Skip git commits"
+    echo "  --deprecate                     Register old name as previous (with align)"
+    echo "  --canonical <name>              Specify canonical name (with deprecate)"
     echo ""
     echo "Examples:"
     echo "  sofia-wiki ingest error-correction manuscript.txt"
@@ -105,7 +108,8 @@ show_usage() {
     echo "  sofia-wiki sync error-correction"
     echo "  sofia-wiki status error-correction"
     echo "  sofia-wiki loop error-correction --json"
-    echo "  sofia-wiki align error-correction 'Mara Vasencova' 'Mara Vasenkova'"
+    echo "  sofia-wiki align error-correction 'Mara Ivanova' 'Mara Vasenkova' --deprecate"
+    echo "  sofia-wiki deprecate error-correction 'Mara Ivanova' --canonical 'Mara Vasenkova'"
 }
 
 # Ensure project wiki exists
@@ -1112,15 +1116,228 @@ if not variants and not warnings:
     fi
 }
 
+# Apply previous_names auto-alignment to content
+# Returns the content with previous names replaced by canonical names
+apply_previous_names() {
+    local wiki_dir="$1"
+    local content="$2"
+    
+    python3 << PYEOF
+import json
+import os
+import re
+
+wiki_dir = "$wiki_dir"
+content = '''$content'''
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+
+if not os.path.exists(entities_file):
+    print(content)
+    exit()
+
+with open(entities_file) as f:
+    registry = json.load(f)
+
+previous_names = registry.get('previous_names', {})
+
+if not previous_names:
+    print(content)
+    exit()
+
+# Apply each previous name replacement
+changes = []
+for old_name, info in previous_names.items():
+    canonical = info.get('canonical', '')
+    if canonical and old_name in content:
+        content = content.replace(old_name, canonical)
+        changes.append(f"{old_name} -> {canonical}")
+
+# Log changes to stderr so they don't pollute the output
+if changes:
+    import sys
+    print(f"Auto-aligned {len(changes)} previous names: {', '.join(changes)}", file=sys.stderr)
+
+print(content)
+PYEOF
+}
+
+# Check if content contains any previous names and return alignment info
+check_previous_names() {
+    local wiki_dir="$1"
+    local content="$2"
+    
+    python3 << PYEOF
+import json
+import os
+
+wiki_dir = "$wiki_dir"
+content = '''$content'''
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+
+if not os.path.exists(entities_file):
+    print(json.dumps({"found": [], "count": 0}))
+    exit()
+
+with open(entities_file) as f:
+    registry = json.load(f)
+
+previous_names = registry.get('previous_names', {})
+found = []
+
+for old_name, info in previous_names.items():
+    if old_name in content:
+        found.append({
+            "old": old_name,
+            "canonical": info.get('canonical', ''),
+            "deprecated": info.get('deprecated', ''),
+            "reason": info.get('reason', '')
+        })
+
+print(json.dumps({"found": found, "count": len(found)}))
+PYEOF
+}
+
+# Register a previous name in the entity registry
+register_previous_name() {
+    local wiki_dir="$1"
+    local old_name="$2"
+    local canonical_name="$3"
+    local reason="${4:-Author name change}"
+    
+    local entities_file="$wiki_dir/.sofia/entities.json"
+    
+    python3 << PYEOF
+import json
+import os
+from datetime import datetime
+
+entities_file = "$entities_file"
+old_name = "$old_name"
+canonical_name = "$canonical_name"
+reason = "$reason"
+
+# Load or create registry
+if os.path.exists(entities_file):
+    with open(entities_file) as f:
+        registry = json.load(f)
+else:
+    registry = {"version": "1.0", "entities": {}, "previous_names": {}}
+
+# Ensure previous_names section exists
+if "previous_names" not in registry:
+    registry["previous_names"] = {}
+
+# Add the previous name mapping
+registry["previous_names"][old_name] = {
+    "canonical": canonical_name,
+    "deprecated": datetime.now().strftime("%Y-%m-%d"),
+    "reason": reason
+}
+
+# Save registry
+os.makedirs(os.path.dirname(entities_file), exist_ok=True)
+with open(entities_file, 'w') as f:
+    json.dump(registry, f, indent=2)
+
+print(f"Registered '{old_name}' as previous name for '{canonical_name}'")
+PYEOF
+}
+
+# Deprecate command: register a previous name (alias for align --deprecate)
+cmd_deprecate() {
+    local project="$1"
+    local old_name="$2"
+    local canonical_name="$3"
+    
+    if [ -z "$project" ] || [ -z "$old_name" ]; then
+        echo "Error: deprecate requires <project> and <old_name>"
+        echo "Usage: sofia-wiki deprecate <project> <old_name> [--canonical <new_name>]"
+        echo ""
+        echo "If --canonical is not provided, will search for similar names in registry."
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    # If canonical name provided, register directly
+    if [ -n "$canonical_name" ]; then
+        register_previous_name "$wiki_dir" "$old_name" "$canonical_name"
+        
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_status_json "Registered '$old_name' as previous name for '$canonical_name'." "{\"stage\": \"deprecate\", \"old\": \"$old_name\", \"canonical\": \"$canonical_name\"}" ""
+        fi
+    else
+        # Try to find a similar canonical name in registry
+        local suggestion=$(python3 << PYEOF
+import json
+import os
+import difflib
+
+wiki_dir = "$wiki_dir"
+old_name = "$old_name"
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+
+if not os.path.exists(entities_file):
+    print("")
+    exit()
+
+with open(entities_file) as f:
+    registry = json.load(f)
+
+entities = registry.get('entities', {})
+names = []
+for eid, edata in entities.items():
+    if isinstance(edata, dict) and 'name' in edata:
+        names.append(edata['name'])
+    elif isinstance(edata, str):
+        names.append(edata)
+
+# Find best match
+best_match = None
+best_ratio = 0
+for name in names:
+    ratio = difflib.SequenceMatcher(None, old_name.lower(), name.lower()).ratio()
+    if ratio > best_ratio and ratio > 0.6:
+        best_ratio = ratio
+        best_match = name
+
+if best_match:
+    print(best_match)
+else:
+    print("")
+PYEOF
+)
+        
+        if [ -n "$suggestion" ]; then
+            echo "Found similar name: $suggestion"
+            echo ""
+            echo "Register '$old_name' as previous name for '$suggestion'? [y/N]"
+            read -r response
+            if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
+                register_previous_name "$wiki_dir" "$old_name" "$suggestion"
+            fi
+        else
+            echo "No similar name found in registry."
+            echo "Please specify canonical name: sofia-wiki deprecate $project '$old_name' --canonical '<canonical_name>'"
+        fi
+    fi
+}
+
 # Align command: correct entity name variants
 cmd_align() {
     local project="$1"
     local old_name="$2"
     local new_name="$3"
+    local deprecate="$DEPRECATE_FLAG"
     
     if [ -z "$project" ]; then
         echo "Error: align requires <project>"
-        echo "Usage: sofia-wiki align <project> <old_name> <new_name>"
+        echo "Usage: sofia-wiki align <project> <old_name> <new_name> [--deprecate]"
         echo "       sofia-wiki align <project> --auto"
         exit 1
     fi
@@ -1231,7 +1448,7 @@ print(f'\\nAligned {changes} occurrences')
         # Manual mode: align specific name
         if [ -z "$new_name" ]; then
             echo "Error: align requires <old_name> and <new_name>"
-            echo "Usage: sofia-wiki align <project> <old_name> <new_name>"
+            echo "Usage: sofia-wiki align <project> <old_name> <new_name> [--deprecate]"
             exit 1
         fi
         
@@ -1243,10 +1460,20 @@ print(f'\\nAligned {changes} occurrences')
             fi
         done | wc -l | tr -d ' ')
         
+        # If --deprecate flag is set, register old name as previous_name
+        if [ "$deprecate" = "true" ]; then
+            register_previous_name "$wiki_dir" "$old_name" "$new_name"
+        fi
+        
         if [ "$JSON_OUTPUT" = "true" ]; then
-            emit_status_json "Aligned '$old_name' to '$new_name' in $changes files." "{\"stage\": \"align\", \"old\": \"$old_name\", \"new\": \"$new_name\", \"changes\": $changes}" "git add $wiki_dir && git commit -m 'sofia: align $old_name to $new_name'"
+            local deprecate_info=""
+            [ "$deprecate" = "true" ] && deprecate_info=", \"deprecated\": true"
+            emit_status_json "Aligned '$old_name' to '$new_name' in $changes files.${deprecate:+ Registered as previous name.}" "{\"stage\": \"align\", \"old\": \"$old_name\", \"new\": \"$new_name\", \"changes\": $changes$deprecate_info}" "git add $wiki_dir && git commit -m 'sofia: align $old_name to $new_name'"
         else
             echo "Aligned '$old_name' to '$new_name' in $changes files."
+            if [ "$deprecate" = "true" ]; then
+                echo "Registered '$old_name' as previous name for '$new_name'."
+            fi
             echo ""
             echo "Run: git add $wiki_dir && git commit -m 'sofia: align entity names'"
         fi
@@ -1261,6 +1488,8 @@ ARG3=""
 ARG4=""
 DRY_RUN="false"
 NO_COMMIT="false"
+DEPRECATE_FLAG="false"
+CANONICAL_NAME=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1276,11 +1505,19 @@ while [ $# -gt 0 ]; do
             NO_COMMIT="true"
             shift
             ;;
+        --deprecate)
+            DEPRECATE_FLAG="true"
+            shift
+            ;;
+        --canonical)
+            CANONICAL_NAME="$2"
+            shift 2
+            ;;
         -h|--help)
             show_usage
             exit 0
             ;;
-        ingest|update|sync|status|extract|resolve|bulk-extract|bulk-analyze|loop|entities|validate|align)
+        ingest|update|sync|status|extract|resolve|bulk-extract|bulk-analyze|loop|entities|validate|align|deprecate)
             COMMAND="$1"
             shift
             ;;
@@ -1343,6 +1580,10 @@ case "$COMMAND" in
         ;;
     align)
         cmd_align "$PROJECT" "$ARG2" "$ARG3"
+        ;;
+    deprecate)
+        # Use CANONICAL_NAME if provided via --canonical, otherwise use ARG3
+        cmd_deprecate "$PROJECT" "$ARG2" "${CANONICAL_NAME:-$ARG3}"
         ;;
     *)
         echo "Unknown command: $COMMAND"
