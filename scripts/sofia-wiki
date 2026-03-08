@@ -9,6 +9,77 @@ WIKI_ROOT="notes/wiki"
 CANON_ROOT="notes/canon"
 INCOMING_ROOT="notes/incoming"
 
+# Global flags
+JSON_OUTPUT="false"
+
+# ============================================================================
+# JSON Output Helpers
+# ============================================================================
+
+# Emit a JSON instruction block for Windsurf
+# Usage: emit_json "ui message" "ask_json_or_null" "data_json" "next_cmd" "auto_bool"
+emit_json() {
+    local ui="$1"
+    local ask="$2"      # JSON object or "null"
+    local data="$3"     # JSON object
+    local next_cmd="$4"
+    local auto="$5"     # "true" or "false"
+    
+    # Default auto to true for hygiene tasks
+    [ -z "$auto" ] && auto="true"
+    
+    # Convert "null" string to Python None, and bool strings to Python bools
+    local ask_py="$ask"
+    [ "$ask" = "null" ] && ask_py="None"
+    
+    local auto_py="True"
+    [ "$auto" = "false" ] && auto_py="False"
+    
+    # Build the JSON
+    python3 -c "
+import json
+
+ui = '''$ui'''
+ask = $ask_py
+data = $data
+next_cmd = '''$next_cmd'''
+auto = $auto_py
+
+obj = {
+    'ui': ui,
+    'ask': ask,
+    'data': data,
+    'next': {
+        'cmd': next_cmd,
+        'auto': auto
+    } if next_cmd else None
+}
+print(json.dumps(obj, indent=2))
+"
+}
+
+# Emit a simple status JSON (auto-proceed)
+emit_status_json() {
+    local ui="$1"
+    local data="$2"
+    local next_cmd="$3"
+    emit_json "$ui" "null" "$data" "$next_cmd" "true"
+}
+
+# Emit a decision-required JSON
+emit_ask_json() {
+    local ui="$1"
+    local ask_type="$2"      # "choice", "confirm", "input"
+    local question="$3"
+    local options="$4"       # JSON array like ["opt1", "opt2"]
+    local default="$5"
+    local data="$6"
+    local next_cmd="$7"
+    
+    local ask_obj="{\"type\": \"$ask_type\", \"question\": \"$question\", \"options\": $options, \"default\": \"$default\"}"
+    emit_json "$ui" "$ask_obj" "$data" "$next_cmd" "false"
+}
+
 show_usage() {
     echo "Usage: sofia-wiki <command> [options]"
     echo ""
@@ -18,8 +89,13 @@ show_usage() {
     echo "  sync <project>                  Review and resolve conflicts"
     echo "  status <project>                Show wiki status and pending items"
     echo "  extract <project> <chapter>     Generate LLM prompt for a chapter"
+    echo "  loop <project>                  Start LLM-in-the-loop workflow"
+    echo "  entities <project>              List known entity names"
+    echo "  validate <project> [chapter]    Validate entity naming consistency"
+    echo "  align <project> <old> <new>     Align entity name variants"
     echo ""
     echo "Options:"
+    echo "  --json                          Output JSON instruction blocks"
     echo "  --dry-run                       Show what would be done without doing it"
     echo "  --no-commit                     Skip git commits"
     echo ""
@@ -28,6 +104,8 @@ show_usage() {
     echo "  sofia-wiki update error-correction notes/new-note.md"
     echo "  sofia-wiki sync error-correction"
     echo "  sofia-wiki status error-correction"
+    echo "  sofia-wiki loop error-correction --json"
+    echo "  sofia-wiki align error-correction 'Mara Vasencova' 'Mara Vasenkova'"
 }
 
 # Ensure project wiki exists
@@ -176,8 +254,12 @@ cmd_status() {
     local project="$1"
     
     if [ -z "$project" ]; then
-        echo "Error: status requires <project>"
-        echo "Usage: sofia-wiki status <project>"
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_json "Error: status requires <project>" "null" '{"error": "missing_project"}' "" "false"
+        else
+            echo "Error: status requires <project>"
+            echo "Usage: sofia-wiki status <project>"
+        fi
         exit 1
     fi
     
@@ -185,12 +267,13 @@ cmd_status() {
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     if [ ! -d "$wiki_dir" ]; then
-        echo "Error: Wiki not found for project: $project"
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_json "Wiki not found for project: $project" "null" "{\"error\": \"wiki_not_found\", \"project\": \"$project\"}" "" "false"
+        else
+            echo "Error: Wiki not found for project: $project"
+        fi
         exit 1
     fi
-    
-    echo "=== Sofia Wiki Status: $project ==="
-    echo ""
     
     # Count items
     local canon_chapters=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
@@ -201,37 +284,65 @@ cmd_status() {
     local objects=$(ls -1 "$wiki_dir/objects"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
     local ideas=$(ls -1 "$wiki_dir/ideas"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
     
-    echo "Canon chapters:  $canon_chapters"
-    echo "Wiki chapters:   $wiki_chapters / $canon_chapters"
-    echo ""
-    echo "Entities:"
-    echo "  People:  $people"
-    echo "  Places:  $places"
-    echo "  Events:  $events"
-    echo "  Objects: $objects"
-    echo "  Ideas:   $ideas"
-    echo ""
-    
     # Check for conflicts
     local conflicts=0
     if [ -f "$wiki_dir/.sofia/conflicts.json" ]; then
         conflicts=$(grep -c '"status": "unresolved"' "$wiki_dir/.sofia/conflicts.json" 2>/dev/null || true)
         conflicts=${conflicts:-0}
     fi
-    if [ "$conflicts" -gt 0 ] 2>/dev/null; then
-        echo "⚠️  Unresolved conflicts: $conflicts"
-        echo "   Run: sofia-wiki sync $project"
-    else
-        echo "✓ No unresolved conflicts"
-    fi
-    echo ""
     
     # Pending chapters
     local pending=$((canon_chapters - wiki_chapters))
+    local next_chapter=""
     if [ "$pending" -gt 0 ]; then
-        echo "📝 Pending chapters: $pending"
-        local next_chapter=$(ls -1 "$canon_dir"/*.md 2>/dev/null | head -1 | xargs -I{} basename {} .md)
-        echo "   Next: sofia-wiki extract $project $next_chapter"
+        next_chapter=$(ls -1 "$canon_dir"/*.md 2>/dev/null | while read f; do
+            bn=$(basename "$f" .md)
+            if [ ! -f "$wiki_dir/chapters/$bn.md" ]; then
+                echo "$bn"
+                break
+            fi
+        done)
+    fi
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        local data_json="{\"stage\": \"status\", \"project\": \"$project\", \"canon_chapters\": $canon_chapters, \"wiki_chapters\": $wiki_chapters, \"pending\": $pending, \"entities\": {\"people\": $people, \"places\": $places, \"events\": $events, \"objects\": $objects, \"ideas\": $ideas}, \"conflicts\": $conflicts, \"next_chapter\": \"$next_chapter\"}"
+        
+        local next_cmd=""
+        if [ "$pending" -gt 0 ]; then
+            next_cmd="sofia-wiki extract $project $next_chapter --json"
+        elif [ "$conflicts" -gt 0 ]; then
+            next_cmd="sofia-wiki sync $project --json"
+        else
+            next_cmd="sofia-wiki validate $project --json"
+        fi
+        
+        emit_status_json "Wiki status for '$project': $wiki_chapters/$canon_chapters chapters, $pending pending, $conflicts conflicts" "$data_json" "$next_cmd"
+    else
+        echo "=== Sofia Wiki Status: $project ==="
+        echo ""
+        echo "Canon chapters:  $canon_chapters"
+        echo "Wiki chapters:   $wiki_chapters / $canon_chapters"
+        echo ""
+        echo "Entities:"
+        echo "  People:  $people"
+        echo "  Places:  $places"
+        echo "  Events:  $events"
+        echo "  Objects: $objects"
+        echo "  Ideas:   $ideas"
+        echo ""
+        
+        if [ "$conflicts" -gt 0 ] 2>/dev/null; then
+            echo "⚠️  Unresolved conflicts: $conflicts"
+            echo "   Run: sofia-wiki sync $project"
+        else
+            echo "✓ No unresolved conflicts"
+        fi
+        echo ""
+        
+        if [ "$pending" -gt 0 ]; then
+            echo "📝 Pending chapters: $pending"
+            echo "   Next: sofia-wiki extract $project $next_chapter"
+        fi
     fi
 }
 
@@ -605,6 +716,543 @@ for c in data.get('conflicts', []):
     echo "Conflict resolved. Run 'sofia-wiki sync $project' to verify."
 }
 
+# ============================================================================
+# New Commands: loop, entities, validate, align
+# ============================================================================
+
+# Loop command: LLM-in-the-loop workflow
+cmd_loop() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_json "Error: loop requires <project>" "null" '{"error": "missing_project"}' "" "false"
+        else
+            echo "Error: loop requires <project>"
+            echo "Usage: sofia-wiki loop <project>"
+        fi
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    local canon_dir="$CANON_ROOT/$project/chapters"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_json "Wiki not found for project: $project. Run 'sofia-wiki ingest' first." "null" "{\"error\": \"wiki_not_found\", \"project\": \"$project\"}" "" "false"
+        else
+            echo "Error: Wiki not found for project: $project"
+            echo "Run 'sofia-wiki ingest $project <manuscript>' first"
+        fi
+        exit 1
+    fi
+    
+    # Get counts
+    local canon_chapters=$(ls -1 "$canon_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    local wiki_chapters=$(ls -1 "$wiki_dir/chapters"/*.md 2>/dev/null | grep -v index.md | wc -l | tr -d ' ')
+    local pending=$((canon_chapters - wiki_chapters))
+    
+    # Find next pending chapter
+    local next_chapter=""
+    if [ "$pending" -gt 0 ]; then
+        next_chapter=$(ls -1 "$canon_dir"/*.md 2>/dev/null | while read f; do
+            bn=$(basename "$f" .md)
+            if [ ! -f "$wiki_dir/chapters/$bn.md" ]; then
+                echo "$bn"
+                break
+            fi
+        done)
+    fi
+    
+    # Load known entities from registry
+    local entities_json="[]"
+    if [ -f "$wiki_dir/.sofia/entities.json" ]; then
+        entities_json=$(python3 -c "
+import json
+with open('$wiki_dir/.sofia/entities.json') as f:
+    data = json.load(f)
+    names = list(data.get('entities', {}).keys())
+    print(json.dumps(names[:50]))  # Limit to 50 for prompt size
+" 2>/dev/null || echo "[]")
+    fi
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        local data_json="{\"stage\": \"loop\", \"project\": \"$project\", \"canon_chapters\": $canon_chapters, \"wiki_chapters\": $wiki_chapters, \"pending\": $pending, \"next_chapter\": \"$next_chapter\", \"known_entities\": $entities_json}"
+        
+        if [ "$pending" -eq 0 ]; then
+            # All chapters done - suggest validation
+            emit_status_json "All $canon_chapters chapters extracted. Ready for validation." "$data_json" "sofia-wiki validate $project --json"
+        else
+            # Chapters pending - emit extraction prompt
+            local prompt=$("$SCRIPT_DIR/scripts/sofia-prompt" -extract "$canon_dir/$next_chapter.md" 2>/dev/null | head -c 50000)
+            # Escape the prompt for JSON
+            local escaped_prompt=$(echo "$prompt" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))")
+            
+            local data_with_prompt="{\"stage\": \"extract\", \"project\": \"$project\", \"chapter\": \"$next_chapter\", \"pending\": $pending, \"prompt\": $escaped_prompt, \"known_entities\": $entities_json, \"output_path\": \"$wiki_dir/chapters/$next_chapter.md\"}"
+            
+            emit_status_json "Extract chapter $next_chapter ($pending remaining). Process the prompt and save to output_path." "$data_with_prompt" "sofia-wiki loop $project --json"
+        fi
+    else
+        echo "=== Sofia Wiki Loop: $project ==="
+        echo ""
+        echo "Canon chapters: $canon_chapters"
+        echo "Wiki chapters:  $wiki_chapters"
+        echo "Pending:        $pending"
+        echo ""
+        
+        if [ "$pending" -eq 0 ]; then
+            echo "✓ All chapters extracted!"
+            echo ""
+            echo "Next: sofia-wiki validate $project"
+        else
+            echo "Next chapter: $next_chapter"
+            echo ""
+            echo "Run with --json for LLM-in-the-loop mode:"
+            echo "  sofia-wiki loop $project --json"
+        fi
+    fi
+}
+
+# Entities command: list known entity names
+cmd_entities() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: entities requires <project>"
+        echo "Usage: sofia-wiki entities <project>"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    local entities_file="$wiki_dir/.sofia/entities.json"
+    
+    # Build entity list from wiki files if registry is empty/missing
+    if [ ! -f "$entities_file" ] || [ "$(cat "$entities_file" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('entities',{})))")" = "0" ]; then
+        # Scan wiki files to build entity registry
+        python3 << 'PYEOF'
+import os
+import json
+import re
+
+wiki_dir = os.environ.get('WIKI_DIR', 'notes/wiki/error-correction')
+entities = {}
+
+# Scan each entity category
+for category in ['people', 'places', 'events', 'objects', 'ideas']:
+    cat_dir = os.path.join(wiki_dir, category)
+    if not os.path.isdir(cat_dir):
+        continue
+    
+    for fname in os.listdir(cat_dir):
+        if not fname.endswith('.md') or fname == 'index.md':
+            continue
+        
+        fpath = os.path.join(cat_dir, fname)
+        with open(fpath, 'r') as f:
+            content = f.read()
+        
+        # Extract title from first H1 or H2
+        match = re.search(r'^#+ (.+)$', content, re.MULTILINE)
+        if match:
+            name = match.group(1).strip()
+            slug = fname[:-3]  # remove .md
+            entities[name] = {
+                'slug': slug,
+                'category': category,
+                'file': fpath
+            }
+
+# Also scan chapter files for entity mentions
+chapters_dir = os.path.join(wiki_dir, 'chapters')
+if os.path.isdir(chapters_dir):
+    for fname in os.listdir(chapters_dir):
+        if not fname.endswith('.md'):
+            continue
+        fpath = os.path.join(chapters_dir, fname)
+        with open(fpath, 'r') as f:
+            content = f.read()
+        
+        # Find H3 headers under People, Places, etc sections
+        for match in re.finditer(r'^### (.+)$', content, re.MULTILINE):
+            name = match.group(1).strip()
+            if name and name not in entities:
+                entities[name] = {'slug': None, 'category': 'unknown', 'file': None}
+
+# Save to registry
+registry = {'version': '1.0', 'entities': entities}
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+os.makedirs(os.path.dirname(entities_file), exist_ok=True)
+with open(entities_file, 'w') as f:
+    json.dump(registry, f, indent=2)
+
+print(f"Found {len(entities)} entities")
+PYEOF
+    fi
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        cat "$entities_file"
+    else
+        echo "=== Entity Registry: $project ==="
+        echo ""
+        python3 -c "
+import json
+with open('$entities_file') as f:
+    data = json.load(f)
+    entities = data.get('entities', {})
+    
+    # Group by category
+    by_cat = {}
+    for name, info in entities.items():
+        cat = info.get('category', 'unknown')
+        if cat not in by_cat:
+            by_cat[cat] = []
+        by_cat[cat].append(name)
+    
+    for cat in ['people', 'places', 'events', 'objects', 'ideas', 'unknown']:
+        if cat in by_cat:
+            print(f'{cat.title()} ({len(by_cat[cat])}):')
+            for name in sorted(by_cat[cat])[:20]:
+                print(f'  - {name}')
+            if len(by_cat[cat]) > 20:
+                print(f'  ... and {len(by_cat[cat]) - 20} more')
+            print()
+"
+    fi
+}
+
+# Validate command: check entity naming consistency
+cmd_validate() {
+    local project="$1"
+    local chapter="$2"
+    
+    if [ -z "$project" ]; then
+        echo "Error: validate requires <project>"
+        echo "Usage: sofia-wiki validate <project> [chapter]"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    # Run validation
+    local validation_result=$(python3 << 'PYEOF'
+import os
+import json
+import re
+from collections import defaultdict
+
+wiki_dir = os.environ.get('WIKI_DIR', 'notes/wiki/error-correction')
+chapter_filter = os.environ.get('CHAPTER_FILTER', '')
+
+# Load entity registry
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+known_entities = {}
+if os.path.exists(entities_file):
+    with open(entities_file) as f:
+        known_entities = json.load(f).get('entities', {})
+
+# Find all entity mentions in wiki chapters
+mentions = defaultdict(list)  # name -> [files where mentioned]
+chapters_dir = os.path.join(wiki_dir, 'chapters')
+
+if os.path.isdir(chapters_dir):
+    for fname in os.listdir(chapters_dir):
+        if not fname.endswith('.md'):
+            continue
+        if chapter_filter and chapter_filter not in fname:
+            continue
+            
+        fpath = os.path.join(chapters_dir, fname)
+        with open(fpath, 'r') as f:
+            content = f.read()
+        
+        # Find H3 headers (entity names)
+        for match in re.finditer(r'^### (.+)$', content, re.MULTILINE):
+            name = match.group(1).strip()
+            mentions[name].append(fname)
+
+# Find potential duplicates (similar names)
+import difflib
+
+warnings = []
+errors = []
+variants = defaultdict(list)
+
+names = list(mentions.keys())
+for i, name1 in enumerate(names):
+    for name2 in names[i+1:]:
+        # Check similarity
+        ratio = difflib.SequenceMatcher(None, name1.lower(), name2.lower()).ratio()
+        if ratio > 0.8 and ratio < 1.0:
+            # Potential variant
+            # Determine canonical (most frequent or in registry)
+            if name1 in known_entities:
+                canonical = name1
+                variant = name2
+            elif name2 in known_entities:
+                canonical = name2
+                variant = name1
+            else:
+                # Use most frequent
+                if len(mentions[name1]) >= len(mentions[name2]):
+                    canonical = name1
+                    variant = name2
+                else:
+                    canonical = name2
+                    variant = name1
+            
+            variants[canonical].append({
+                'variant': variant,
+                'similarity': round(ratio, 2),
+                'files': mentions[variant]
+            })
+
+# Check for broken links
+for fname in os.listdir(chapters_dir) if os.path.isdir(chapters_dir) else []:
+    if not fname.endswith('.md'):
+        continue
+    fpath = os.path.join(chapters_dir, fname)
+    with open(fpath, 'r') as f:
+        content = f.read()
+    
+    # Find markdown links
+    for match in re.finditer(r'\[([^\]]+)\]\(([^)]+)\)', content):
+        link_text, link_path = match.groups()
+        if link_path.startswith('../'):
+            # Relative link to entity
+            full_path = os.path.normpath(os.path.join(chapters_dir, link_path))
+            if not os.path.exists(full_path) and not link_path.startswith('http'):
+                warnings.append({
+                    'type': 'broken_link',
+                    'file': fname,
+                    'link': link_path,
+                    'text': link_text
+                })
+
+result = {
+    'project': os.path.basename(wiki_dir),
+    'variants': dict(variants),
+    'warnings': warnings,
+    'errors': errors,
+    'entity_count': len(known_entities),
+    'mention_count': len(mentions)
+}
+
+print(json.dumps(result, indent=2))
+PYEOF
+)
+    
+    export WIKI_DIR="$wiki_dir"
+    export CHAPTER_FILTER="$chapter"
+    
+    local variant_count=$(echo "$validation_result" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('variants',{})))")
+    local warning_count=$(echo "$validation_result" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('warnings',[])))")
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        local data_json=$(echo "$validation_result" | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+data['stage'] = 'validate'
+print(json.dumps(data))
+")
+        
+        if [ "$variant_count" -gt 0 ]; then
+            # Has variants - ask for decision
+            emit_ask_json \
+                "Validation found $variant_count entity name variants and $warning_count warnings." \
+                "choice" \
+                "How to handle name variants?" \
+                '["align-all", "review-each", "skip"]' \
+                "align-all" \
+                "$data_json" \
+                "sofia-wiki align $project --auto --json"
+        else
+            emit_status_json "Validation passed. No entity name variants found. $warning_count warnings." "$data_json" ""
+        fi
+    else
+        echo "=== Validation: $project ==="
+        echo ""
+        echo "$validation_result" | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+
+variants = data.get('variants', {})
+warnings = data.get('warnings', [])
+
+if variants:
+    print(f'Entity Name Variants ({len(variants)}):')
+    for canonical, vars in variants.items():
+        print(f'  {canonical}:')
+        for v in vars:
+            print(f'    - {v[\"variant\"]} ({v[\"similarity\"]*100:.0f}% similar, in {len(v[\"files\"])} files)')
+    print()
+
+if warnings:
+    print(f'Warnings ({len(warnings)}):')
+    for w in warnings[:10]:
+        if w['type'] == 'broken_link':
+            print(f'  - Broken link in {w[\"file\"]}: {w[\"link\"]}')
+    if len(warnings) > 10:
+        print(f'  ... and {len(warnings) - 10} more')
+    print()
+
+if not variants and not warnings:
+    print('✓ No issues found')
+"
+    fi
+}
+
+# Align command: correct entity name variants
+cmd_align() {
+    local project="$1"
+    local old_name="$2"
+    local new_name="$3"
+    
+    if [ -z "$project" ]; then
+        echo "Error: align requires <project>"
+        echo "Usage: sofia-wiki align <project> <old_name> <new_name>"
+        echo "       sofia-wiki align <project> --auto"
+        exit 1
+    fi
+    
+    local wiki_dir="$WIKI_ROOT/$project"
+    
+    if [ ! -d "$wiki_dir" ]; then
+        echo "Error: Wiki not found for project: $project"
+        exit 1
+    fi
+    
+    # Auto mode: align all detected variants
+    if [ "$old_name" = "--auto" ]; then
+        # Run validation to get variants
+        export WIKI_DIR="$wiki_dir"
+        local validation=$(WIKI_DIR="$wiki_dir" python3 << 'PYEOF'
+import os
+import json
+import re
+from collections import defaultdict
+import difflib
+
+wiki_dir = os.environ.get('WIKI_DIR')
+chapters_dir = os.path.join(wiki_dir, 'chapters')
+
+# Load entity registry
+entities_file = os.path.join(wiki_dir, '.sofia', 'entities.json')
+known_entities = {}
+if os.path.exists(entities_file):
+    with open(entities_file) as f:
+        known_entities = json.load(f).get('entities', {})
+
+# Find all entity mentions
+mentions = defaultdict(list)
+if os.path.isdir(chapters_dir):
+    for fname in os.listdir(chapters_dir):
+        if not fname.endswith('.md'):
+            continue
+        fpath = os.path.join(chapters_dir, fname)
+        with open(fpath, 'r') as f:
+            content = f.read()
+        for match in re.finditer(r'^### (.+)$', content, re.MULTILINE):
+            name = match.group(1).strip()
+            mentions[name].append(fname)
+
+# Find variants
+variants = []
+names = list(mentions.keys())
+for i, name1 in enumerate(names):
+    for name2 in names[i+1:]:
+        ratio = difflib.SequenceMatcher(None, name1.lower(), name2.lower()).ratio()
+        if ratio > 0.8 and ratio < 1.0:
+            if name1 in known_entities:
+                canonical, variant = name1, name2
+            elif name2 in known_entities:
+                canonical, variant = name2, name1
+            elif len(mentions[name1]) >= len(mentions[name2]):
+                canonical, variant = name1, name2
+            else:
+                canonical, variant = name2, name1
+            variants.append({'canonical': canonical, 'variant': variant, 'files': mentions[variant]})
+
+print(json.dumps(variants))
+PYEOF
+)
+        
+        local change_count=0
+        
+        # Apply each variant correction
+        echo "$validation" | python3 -c "
+import json,sys,os,re
+
+wiki_dir = os.environ.get('WIKI_DIR')
+variants = json.load(sys.stdin)
+chapters_dir = os.path.join(wiki_dir, 'chapters')
+
+changes = 0
+for v in variants:
+    canonical = v['canonical']
+    variant = v['variant']
+    
+    for fname in v['files']:
+        fpath = os.path.join(chapters_dir, fname)
+        with open(fpath, 'r') as f:
+            content = f.read()
+        
+        # Replace variant with canonical in H3 headers
+        new_content = re.sub(
+            rf'^### {re.escape(variant)}$',
+            f'### {canonical}',
+            content,
+            flags=re.MULTILINE
+        )
+        
+        if new_content != content:
+            with open(fpath, 'w') as f:
+                f.write(new_content)
+            changes += 1
+            print(f'  {fname}: {variant} -> {canonical}')
+
+print(f'\\nAligned {changes} occurrences')
+"
+        
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_status_json "Auto-aligned entity name variants." '{"stage": "align", "mode": "auto"}' "git add $wiki_dir && git commit -m 'sofia: align entity names'"
+        fi
+    else
+        # Manual mode: align specific name
+        if [ -z "$new_name" ]; then
+            echo "Error: align requires <old_name> and <new_name>"
+            echo "Usage: sofia-wiki align <project> <old_name> <new_name>"
+            exit 1
+        fi
+        
+        # Find and replace in all wiki files
+        local changes=$(find "$wiki_dir" -name "*.md" -exec grep -l "$old_name" {} \; | while read f; do
+            if grep -q "$old_name" "$f"; then
+                sed -i '' "s/$old_name/$new_name/g" "$f"
+                echo "$f"
+            fi
+        done | wc -l | tr -d ' ')
+        
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            emit_status_json "Aligned '$old_name' to '$new_name' in $changes files." "{\"stage\": \"align\", \"old\": \"$old_name\", \"new\": \"$new_name\", \"changes\": $changes}" "git add $wiki_dir && git commit -m 'sofia: align $old_name to $new_name'"
+        else
+            echo "Aligned '$old_name' to '$new_name' in $changes files."
+            echo ""
+            echo "Run: git add $wiki_dir && git commit -m 'sofia: align entity names'"
+        fi
+    fi
+}
+
 # Parse arguments
 COMMAND=""
 PROJECT=""
@@ -616,6 +1264,10 @@ NO_COMMIT="false"
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --json)
+            JSON_OUTPUT="true"
+            shift
+            ;;
         --dry-run)
             DRY_RUN="true"
             shift
@@ -628,7 +1280,7 @@ while [ $# -gt 0 ]; do
             show_usage
             exit 0
             ;;
-        ingest|update|sync|status|extract|resolve|bulk-extract|bulk-analyze)
+        ingest|update|sync|status|extract|resolve|bulk-extract|bulk-analyze|loop|entities|validate|align)
             COMMAND="$1"
             shift
             ;;
@@ -679,6 +1331,18 @@ case "$COMMAND" in
         ;;
     update)
         cmd_update "$PROJECT" "$ARG2" "$DRY_RUN" "$NO_COMMIT"
+        ;;
+    loop)
+        cmd_loop "$PROJECT"
+        ;;
+    entities)
+        cmd_entities "$PROJECT"
+        ;;
+    validate)
+        cmd_validate "$PROJECT" "$ARG2"
+        ;;
+    align)
+        cmd_align "$PROJECT" "$ARG2" "$ARG3"
         ;;
     *)
         echo "Unknown command: $COMMAND"
