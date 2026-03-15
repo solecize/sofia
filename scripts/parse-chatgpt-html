@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+Parse ChatGPT HTML export and extract conversation to markdown
+"""
+
+import sys
+import json
+import re
+from html.parser import HTMLParser
+from pathlib import Path
+
+class ChatGPTHTMLParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.in_article = False
+        self.in_user_message = False
+        self.in_assistant_message = False
+        self.in_markdown = False
+        self.current_role = None
+        self.current_content = []
+        self.messages = []
+        self.capture_text = False
+        
+    def handle_starttag(self, tag, attrs):
+        attrs_dict = dict(attrs)
+        
+        # Detect conversation turn articles
+        if tag == 'article':
+            for attr, value in attrs:
+                if attr == 'data-turn':
+                    self.in_article = True
+                    self.current_role = value
+                    self.current_content = []
+                    break
+        
+        # Detect message content divs
+        if self.in_article and tag == 'div':
+            # User messages
+            if attrs_dict.get('data-message-author-role') == 'user':
+                self.in_user_message = True
+                self.capture_text = True
+            # Assistant messages
+            elif attrs_dict.get('data-message-author-role') == 'assistant':
+                self.in_assistant_message = True
+            # Markdown content in assistant messages
+            elif self.in_assistant_message and 'markdown' in attrs_dict.get('class', ''):
+                self.in_markdown = True
+                self.capture_text = True
+    
+    def handle_endtag(self, tag):
+        if tag == 'article' and self.in_article:
+            # Save the message
+            if self.current_content:
+                content = ''.join(self.current_content).strip()
+                if content:
+                    self.messages.append({
+                        'role': self.current_role,
+                        'content': content
+                    })
+            
+            self.in_article = False
+            self.in_user_message = False
+            self.in_assistant_message = False
+            self.in_markdown = False
+            self.capture_text = False
+            self.current_role = None
+            self.current_content = []
+        
+        if tag == 'div':
+            if self.in_user_message:
+                self.in_user_message = False
+                self.capture_text = False
+            if self.in_markdown:
+                self.in_markdown = False
+                self.capture_text = False
+    
+    def handle_data(self, data):
+        if self.capture_text and data.strip():
+            self.current_content.append(data)
+
+def extract_timestamp(html):
+    """Extract dd-trace-time timestamp from HTML and convert to date"""
+    import re
+    from datetime import datetime
+    
+    match = re.search(r'dd-trace-time["\s]+content="(\d+)"', html)
+    if match:
+        timestamp_ms = int(match.group(1))
+        dt = datetime.fromtimestamp(timestamp_ms / 1000)
+        return dt, timestamp_ms
+    return None, None
+
+def parse_chatgpt_html(html_path):
+    """Parse ChatGPT HTML export and return messages and metadata"""
+    with open(html_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+    
+    # Extract timestamp
+    dt, timestamp_ms = extract_timestamp(html)
+    
+    parser = ChatGPTHTMLParser()
+    parser.feed(html)
+    
+    return parser.messages, {'timestamp': dt, 'timestamp_ms': timestamp_ms}
+
+def messages_to_markdown(messages, title="Conversation"):
+    """Convert messages to markdown format"""
+    lines = [f"# {title}\n"]
+    
+    for i, msg in enumerate(messages, 1):
+        role = msg['role']
+        content = msg['content']
+        
+        if role == 'user':
+            lines.append(f"\n## User Message {i}\n")
+        else:
+            lines.append(f"\n## Assistant Response {i}\n")
+        
+        lines.append(f"{content}\n")
+    
+    return '\n'.join(lines)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: parse-chatgpt-html <html_file> [output_file]")
+        print("       parse-chatgpt-html --info <html_file>  # Show metadata only")
+        sys.exit(1)
+    
+    # Info mode - just show metadata
+    if sys.argv[1] == '--info':
+        if len(sys.argv) < 3:
+            print("Error: --info requires a file path")
+            sys.exit(1)
+        html_path = Path(sys.argv[2])
+        if not html_path.exists():
+            print(f"Error: File not found: {html_path}")
+            sys.exit(1)
+        
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html = f.read()
+        
+        dt, timestamp_ms = extract_timestamp(html)
+        
+        print(f"File: {html_path.name}")
+        if dt:
+            print(f"Timestamp (dd-trace-time): {timestamp_ms}")
+            print(f"Date: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+        else:
+            print("No dd-trace-time timestamp found")
+        
+        # Also count messages
+        parser = ChatGPTHTMLParser()
+        parser.feed(html)
+        print(f"Messages: {len(parser.messages)}")
+        sys.exit(0)
+    
+    html_path = Path(sys.argv[1])
+    
+    if not html_path.exists():
+        print(f"Error: File not found: {html_path}")
+        sys.exit(1)
+    
+    # Extract title from filename
+    title = html_path.stem.replace('-', ' ').title()
+    
+    # Parse HTML
+    messages, metadata = parse_chatgpt_html(html_path)
+    
+    print(f"Extracted {len(messages)} messages", file=sys.stderr)
+    if metadata.get('timestamp'):
+        print(f"Timestamp: {metadata['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}", file=sys.stderr)
+    
+    # Convert to markdown
+    markdown = messages_to_markdown(messages, title)
+    
+    # Output
+    if len(sys.argv) > 2:
+        output_path = Path(sys.argv[2])
+        output_path.write_text(markdown, encoding='utf-8')
+        print(f"Wrote {len(markdown)} characters to {output_path}", file=sys.stderr)
+    else:
+        print(markdown)
+
+if __name__ == '__main__':
+    main()

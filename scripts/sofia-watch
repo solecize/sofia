@@ -1,0 +1,238 @@
+#!/bin/bash
+# sofia-watch: File-watching daemon for auto-committing manuscript changes
+# Usage: sofia-watch <project> [--stop|--status]
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WORKS_ROOT="notes/works"
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+get_work_dir() {
+    echo "$SCRIPT_DIR/$WORKS_ROOT/$1"
+}
+
+get_sofia_dir() {
+    echo "$(get_work_dir "$1")/.sofia"
+}
+
+get_pid_file() {
+    echo "$(get_sofia_dir "$1")/watch.pid"
+}
+
+get_log_file() {
+    echo "$(get_sofia_dir "$1")/watch.log"
+}
+
+log_message() {
+    local project="$1"
+    local message="$2"
+    local log_file=$(get_log_file "$project")
+    local timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "[$timestamp] $message" >> "$log_file"
+}
+
+is_running() {
+    local project="$1"
+    local pid_file=$(get_pid_file "$project")
+    
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        if kill -0 "$pid" 2>/dev/null; then
+            return 0
+        else
+            # Stale PID file
+            rm -f "$pid_file"
+        fi
+    fi
+    return 1
+}
+
+check_fswatch() {
+    if ! command -v fswatch &> /dev/null; then
+        echo "Error: fswatch is required but not installed."
+        echo "Install with: brew install fswatch"
+        exit 1
+    fi
+}
+
+# ============================================================================
+# Watch Functions
+# ============================================================================
+
+do_commit() {
+    local project="$1"
+    local changed_file="$2"
+    local work_dir=$(get_work_dir "$project")
+    local filename=$(basename "$changed_file")
+    local timestamp=$(date "+%H:%M:%S")
+    
+    cd "$SCRIPT_DIR"
+    
+    # Check if file actually has changes
+    if git diff --quiet "$changed_file" 2>/dev/null; then
+        # No changes in tracked file, check if untracked
+        if ! git ls-files --error-unmatch "$changed_file" &>/dev/null; then
+            # Untracked file - add and commit
+            git add "$changed_file"
+            git commit -m "auto: $project $filename @ $timestamp" 2>/dev/null || true
+            log_message "$project" "Committed new file: $filename"
+        fi
+    else
+        # Has changes - commit them
+        git add "$changed_file"
+        git commit -m "auto: $project $filename @ $timestamp" 2>/dev/null || true
+        log_message "$project" "Committed changes: $filename"
+    fi
+}
+
+start_watching() {
+    local project="$1"
+    local work_dir=$(get_work_dir "$project")
+    local sofia_dir=$(get_sofia_dir "$project")
+    local pid_file=$(get_pid_file "$project")
+    local log_file=$(get_log_file "$project")
+    local chapters_dir="$work_dir/chapters"
+    
+    # Validate project exists
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        exit 1
+    fi
+    
+    # Check if already running
+    if is_running "$project"; then
+        echo "Watch daemon already running for $project"
+        echo "PID: $(cat "$pid_file")"
+        exit 0
+    fi
+    
+    # Ensure sofia dir exists
+    mkdir -p "$sofia_dir"
+    
+    # Clear old log
+    echo "" > "$log_file"
+    log_message "$project" "Starting watch daemon"
+    
+    # Build list of paths to watch
+    local watch_paths=()
+    [ -d "$chapters_dir" ] && watch_paths+=("$chapters_dir")
+    [ -f "$work_dir/orphans.md" ] && watch_paths+=("$work_dir/orphans.md")
+    [ -f "$work_dir/manuscript.md" ] && watch_paths+=("$work_dir/manuscript.md")
+    
+    if [ ${#watch_paths[@]} -eq 0 ]; then
+        echo "Error: No files to watch in $project"
+        exit 1
+    fi
+    
+    echo "Starting watch daemon for: $project"
+    echo "Watching: ${watch_paths[*]}"
+    echo "Log: $log_file"
+    
+    # Start fswatch in background with debounce
+    (
+        fswatch -o -l 2 --event Created --event Updated --event Renamed \
+            "${watch_paths[@]}" 2>/dev/null | while read -r count; do
+            
+            # Get list of changed files
+            cd "$SCRIPT_DIR"
+            changed=$(git status --porcelain "$work_dir" 2>/dev/null | grep -E "^\s*M|^\?\?" | awk '{print $2}')
+            
+            if [ -n "$changed" ]; then
+                for file in $changed; do
+                    # Only process markdown files
+                    if [[ "$file" == *.md ]]; then
+                        do_commit "$project" "$file"
+                    fi
+                done
+            fi
+        done
+    ) &
+    
+    local daemon_pid=$!
+    echo "$daemon_pid" > "$pid_file"
+    
+    echo "Daemon started with PID: $daemon_pid"
+    log_message "$project" "Daemon started with PID: $daemon_pid"
+}
+
+stop_watching() {
+    local project="$1"
+    local pid_file=$(get_pid_file "$project")
+    
+    if ! is_running "$project"; then
+        echo "No watch daemon running for $project"
+        exit 0
+    fi
+    
+    local pid=$(cat "$pid_file")
+    echo "Stopping watch daemon (PID: $pid)..."
+    
+    # Kill the daemon and its children
+    pkill -P "$pid" 2>/dev/null || true
+    kill "$pid" 2>/dev/null || true
+    
+    rm -f "$pid_file"
+    log_message "$project" "Daemon stopped"
+    echo "Daemon stopped"
+}
+
+show_status() {
+    local project="$1"
+    local pid_file=$(get_pid_file "$project")
+    local log_file=$(get_log_file "$project")
+    
+    if is_running "$project"; then
+        local pid=$(cat "$pid_file")
+        echo "Watch daemon for $project: RUNNING (PID: $pid)"
+        
+        if [ -f "$log_file" ]; then
+            echo ""
+            echo "Recent log entries:"
+            tail -5 "$log_file"
+        fi
+    else
+        echo "Watch daemon for $project: NOT RUNNING"
+    fi
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+if [ $# -lt 1 ]; then
+    echo "Usage: sofia-watch <project> [--stop|--status]"
+    echo ""
+    echo "Commands:"
+    echo "  sofia-watch <project>          Start watching for changes"
+    echo "  sofia-watch <project> --stop   Stop the watch daemon"
+    echo "  sofia-watch <project> --status Show daemon status"
+    exit 1
+fi
+
+PROJECT="$1"
+ACTION="${2:-start}"
+
+check_fswatch
+
+case "$ACTION" in
+    --stop|-stop|stop)
+        stop_watching "$PROJECT"
+        ;;
+    --status|-status|status)
+        show_status "$PROJECT"
+        ;;
+    start|--start|-start|*)
+        if [ "$ACTION" != "start" ] && [ "$ACTION" != "--start" ] && [ "$ACTION" != "-start" ]; then
+            # Unknown flag
+            if [[ "$ACTION" == -* ]]; then
+                echo "Unknown option: $ACTION"
+                exit 1
+            fi
+        fi
+        start_watching "$PROJECT"
+        ;;
+esac

@@ -1,0 +1,1289 @@
+#!/bin/bash
+# sofia-work: Manuscript management commands for story projects
+# Usage: sofia-work <command> [options]
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WORKS_ROOT="notes/works"
+WIKI_ROOT="notes/wiki"
+CANON_ROOT="notes/canon"
+INCOMING_ROOT="notes/incoming"
+
+# Global flags
+JSON_OUTPUT="false"
+DRY_RUN="false"
+NO_COMMIT="false"
+
+# ============================================================================
+# JSON Output Helpers (shared with sofia-wiki)
+# ============================================================================
+
+emit_json() {
+    local ui="$1"
+    local ask="$2"
+    local data="$3"
+    local next_cmd="$4"
+    local auto="$5"
+    
+    [ -z "$auto" ] && auto="true"
+    
+    local ask_py="$ask"
+    [ "$ask" = "null" ] && ask_py="None"
+    
+    local auto_py="True"
+    [ "$auto" = "false" ] && auto_py="False"
+    
+    python3 -c "
+import json
+
+ui = '''$ui'''
+ask = $ask_py
+data = $data
+next_cmd = '''$next_cmd'''
+auto = $auto_py
+
+obj = {
+    'ui': ui,
+    'ask': ask,
+    'data': data,
+    'next': {
+        'cmd': next_cmd,
+        'auto': auto
+    } if next_cmd else None
+}
+print(json.dumps(obj, indent=2))
+"
+}
+
+emit_status_json() {
+    local ui="$1"
+    local data="$2"
+    local next_cmd="$3"
+    emit_json "$ui" "null" "$data" "$next_cmd" "true"
+}
+
+emit_ask_json() {
+    local ui="$1"
+    local ask_type="$2"
+    local question="$3"
+    local options="$4"
+    local default="$5"
+    local data="$6"
+    local next_cmd="$7"
+    
+    local ask_obj="{\"type\": \"$ask_type\", \"question\": \"$question\", \"options\": $options, \"default\": \"$default\"}"
+    emit_json "$ui" "$ask_obj" "$data" "$next_cmd" "false"
+}
+
+# ============================================================================
+# Usage
+# ============================================================================
+
+show_usage() {
+    echo "Usage: sofia-work <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  init <project>                  Create manuscript structure"
+    echo "  ingest <project> <source>       Import manuscript content"
+    echo "  surface <project>               Process notes → place prose in chapters"
+    echo "  checkout <project>              Snapshot current state for editing"
+    echo "  checkin <project>               Version bump, sync wiki, resolve orphans"
+    echo "  status <project>                Show work state and pending items"
+    echo "  toc <project>                   Regenerate table of contents"
+    echo "  watch <project> [--stop|--status]  Auto-commit on file changes"
+    echo ""
+    echo "Options:"
+    echo "  --json                          Output JSON instruction blocks"
+    echo "  --dry-run                       Show what would be done without doing it"
+    echo "  --no-commit                     Skip git commits"
+    echo ""
+    echo "Directory Structure:"
+    echo "  notes/works/<project>/"
+    echo "  ├── manuscript.md               Table of contents with chapter links"
+    echo "  ├── chapters/                   Chapter files"
+    echo "  ├── orphans.md                  Prose without clear placement"
+    echo "  ├── .sofia/                     Work metadata"
+    echo "  └── versions/                   Milestone snapshots"
+}
+
+# ============================================================================
+# Path Helpers
+# ============================================================================
+
+get_work_dir() {
+    local project="$1"
+    echo "$SCRIPT_DIR/$WORKS_ROOT/$project"
+}
+
+get_chapters_dir() {
+    local project="$1"
+    echo "$(get_work_dir "$project")/chapters"
+}
+
+get_sofia_dir() {
+    local project="$1"
+    echo "$(get_work_dir "$project")/.sofia"
+}
+
+get_work_json() {
+    local project="$1"
+    echo "$(get_sofia_dir "$project")/work.json"
+}
+
+get_manuscript() {
+    local project="$1"
+    echo "$(get_work_dir "$project")/manuscript.md"
+}
+
+get_orphans() {
+    local project="$1"
+    echo "$(get_work_dir "$project")/orphans.md"
+}
+
+get_versions_dir() {
+    local project="$1"
+    echo "$(get_work_dir "$project")/versions"
+}
+
+# ============================================================================
+# Work JSON Helpers
+# ============================================================================
+
+create_work_json() {
+    local project="$1"
+    local work_json="$(get_work_json "$project")"
+    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    cat > "$work_json" << EOF
+{
+  "project": "$project",
+  "version": "0.1.0",
+  "created": "$now",
+  "modified": "$now",
+  "checkout": null,
+  "chapters": [],
+  "orphan_count": 0
+}
+EOF
+}
+
+read_work_json() {
+    local project="$1"
+    local work_json="$(get_work_json "$project")"
+    
+    if [ -f "$work_json" ]; then
+        cat "$work_json"
+    else
+        echo "{}"
+    fi
+}
+
+update_work_json() {
+    local project="$1"
+    local field="$2"
+    local value="$3"
+    local work_json="$(get_work_json "$project")"
+    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    python3 -c "
+import json
+import sys
+
+with open('$work_json', 'r') as f:
+    data = json.load(f)
+
+field = '$field'
+value = '''$value'''
+
+# Handle different value types
+if value in ('true', 'false'):
+    value = value == 'true'
+elif value == 'null':
+    value = None
+elif value.startswith('[') or value.startswith('{'):
+    value = json.loads(value)
+elif value.isdigit():
+    value = int(value)
+
+data[field] = value
+data['modified'] = '$now'
+
+with open('$work_json', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+}
+
+get_work_field() {
+    local project="$1"
+    local field="$2"
+    local work_json="$(get_work_json "$project")"
+    
+    if [ -f "$work_json" ]; then
+        python3 -c "
+import json
+with open('$work_json', 'r') as f:
+    data = json.load(f)
+print(data.get('$field', ''))
+"
+    fi
+}
+
+# ============================================================================
+# Command: init
+# ============================================================================
+
+cmd_init() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: Project name required"
+        echo "Usage: sofia-work init <project>"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local sofia_dir="$(get_sofia_dir "$project")"
+    local versions_dir="$(get_versions_dir "$project")"
+    local manuscript="$(get_manuscript "$project")"
+    local orphans="$(get_orphans "$project")"
+    
+    if [ -d "$work_dir" ]; then
+        echo "Error: Work already exists: $project"
+        exit 1
+    fi
+    
+    echo "Creating manuscript structure for: $project"
+    
+    # Create directories
+    mkdir -p "$chapters_dir"
+    mkdir -p "$sofia_dir"
+    mkdir -p "$versions_dir"
+    
+    # Create work.json
+    create_work_json "$project"
+    
+    # Create manuscript.md (TOC)
+    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+    cat > "$manuscript" << EOF
+# $title
+
+## Table of Contents
+
+*No chapters yet. Use \`sofia-work ingest\` to import content.*
+
+---
+
+**Version:** 0.1.0  
+**Status:** Draft  
+**Last Updated:** $(date +"%Y-%m-%d")
+EOF
+    
+    # Create orphans.md
+    cat > "$orphans" << EOF
+# Orphaned Content
+
+Prose and notes that haven't been placed in a chapter yet.
+
+---
+
+*No orphans yet.*
+EOF
+    
+    # Create placements.json
+    echo "[]" > "$sofia_dir/placements.json"
+    
+    echo "✓ Created work structure at: $WORKS_ROOT/$project/"
+    echo "  - manuscript.md (table of contents)"
+    echo "  - chapters/ (chapter files)"
+    echo "  - orphans.md (unplaced content)"
+    echo "  - .sofia/ (metadata)"
+    echo "  - versions/ (milestone snapshots)"
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        emit_status_json "Created manuscript structure for $project" \
+            "{\"project\": \"$project\", \"path\": \"$WORKS_ROOT/$project\"}" \
+            "sofia-work status $project"
+    fi
+}
+
+# ============================================================================
+# Command: status
+# ============================================================================
+
+cmd_status() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        # List all works
+        echo "Available works:"
+        if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
+            for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
+                if [ -d "$dir" ]; then
+                    local name=$(basename "$dir")
+                    local version=$(get_work_field "$name" "version")
+                    local checkout=$(get_work_field "$name" "checkout")
+                    local status="ready"
+                    [ -n "$checkout" ] && [ "$checkout" != "None" ] && status="checked out"
+                    echo "  - $name (v$version) [$status]"
+                fi
+            done
+        else
+            echo "  (none)"
+        fi
+        return
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        echo "Use 'sofia-work init $project' to create it"
+        exit 1
+    fi
+    
+    local version=$(get_work_field "$project" "version")
+    local checkout=$(get_work_field "$project" "checkout")
+    local modified=$(get_work_field "$project" "modified")
+    
+    echo "Work: $project"
+    echo "Version: $version"
+    echo "Modified: $modified"
+    
+    if [ -n "$checkout" ] && [ "$checkout" != "None" ]; then
+        echo "Status: CHECKED OUT (editing in progress)"
+    else
+        echo "Status: Ready"
+    fi
+    
+    # Count chapters
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local chapter_count=0
+    local working_count=0
+    
+    if [ -d "$chapters_dir" ]; then
+        chapter_count=$(find "$chapters_dir" -name "*.md" ! -name "WC-*" 2>/dev/null | wc -l | tr -d '[:space:]')
+        working_count=$(find "$chapters_dir" -name "WC-*.md" 2>/dev/null | wc -l | tr -d '[:space:]')
+    fi
+    # Ensure numeric
+    chapter_count=${chapter_count:-0}
+    working_count=${working_count:-0}
+    
+    echo ""
+    echo "Chapters: $chapter_count"
+    [ "$working_count" -gt 0 ] && echo "Working Chapters: $working_count"
+    
+    # Count orphans
+    local orphans="$(get_orphans "$project")"
+    if [ -f "$orphans" ]; then
+        local orphan_sections
+        orphan_sections=$(grep -c "^## " "$orphans" 2>/dev/null || echo "0")
+        orphan_sections=$(echo "$orphan_sections" | tr -d '[:space:]')
+        [ -n "$orphan_sections" ] && [ "$orphan_sections" -gt 0 ] 2>/dev/null && echo "Orphaned Sections: $orphan_sections"
+    fi
+    
+    # List chapters
+    if [ "$chapter_count" -gt 0 ] 2>/dev/null || [ "$working_count" -gt 0 ] 2>/dev/null; then
+        echo ""
+        echo "Chapter List:"
+        for f in "$chapters_dir"/*.md; do
+            [ -f "$f" ] || continue
+            local name=$(basename "$f" .md)
+            local lines=$(wc -l < "$f" | tr -d ' ')
+            if [[ "$name" == WC-* ]]; then
+                echo "  [WC] ${name#WC-} ($lines lines)"
+            else
+                echo "  $name ($lines lines)"
+            fi
+        done
+    fi
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        emit_status_json "Work status for $project" \
+            "{\"project\": \"$project\", \"version\": \"$version\", \"chapters\": $chapter_count, \"working_chapters\": $working_count}" \
+            ""
+    fi
+}
+
+# ============================================================================
+# Command: toc
+# ============================================================================
+
+cmd_toc() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: Project name required"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local manuscript="$(get_manuscript "$project")"
+    
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        exit 1
+    fi
+    
+    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+    local version=$(get_work_field "$project" "version")
+    
+    # Build TOC
+    local toc_content="# $title\n\n## Table of Contents\n\n"
+    
+    # Regular chapters first
+    local has_chapters=false
+    for f in "$chapters_dir"/*.md; do
+        [ -f "$f" ] || continue
+        [[ "$(basename "$f")" == WC-* ]] && continue
+        has_chapters=true
+        
+        local name=$(basename "$f" .md)
+        local display_name=$(echo "$name" | sed 's/^[0-9]*-//' | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+        local chapter_num=$(echo "$name" | grep -o '^[0-9]*' || echo "")
+        
+        if [ -n "$chapter_num" ]; then
+            toc_content+="$chapter_num. [$display_name](chapters/$name.md)\n"
+        else
+            toc_content+="- [$display_name](chapters/$name.md)\n"
+        fi
+    done
+    
+    [ "$has_chapters" = false ] && toc_content+="*No chapters yet.*\n"
+    
+    # Working chapters
+    local has_working=false
+    for f in "$chapters_dir"/WC-*.md; do
+        [ -f "$f" ] || continue
+        if [ "$has_working" = false ]; then
+            toc_content+="\n### Working Chapters\n\n"
+            has_working=true
+        fi
+        
+        local name=$(basename "$f" .md)
+        local display_name=$(echo "${name#WC-}" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+        toc_content+="- [WC: $display_name](chapters/$name.md)\n"
+    done
+    
+    # Footer
+    toc_content+="\n---\n\n"
+    toc_content+="**Version:** $version  \n"
+    toc_content+="**Status:** Draft  \n"
+    toc_content+="**Last Updated:** $(date +"%Y-%m-%d")\n"
+    
+    # Write manuscript
+    echo -e "$toc_content" > "$manuscript"
+    
+    echo "✓ Regenerated table of contents: $WORKS_ROOT/$project/manuscript.md"
+}
+
+# ============================================================================
+# Command: ingest
+# ============================================================================
+
+cmd_ingest() {
+    local project="$1"
+    local source="$2"
+    
+    if [ -z "$project" ] || [ -z "$source" ]; then
+        echo "Error: Project and source required"
+        echo "Usage: sofia-work ingest <project> <source>"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    # Initialize if needed
+    if [ ! -d "$work_dir" ]; then
+        echo "Work not found, initializing..."
+        cmd_init "$project"
+    fi
+    
+    # Resolve source path
+    local source_path="$source"
+    if [ ! -e "$source_path" ]; then
+        source_path="$SCRIPT_DIR/$source"
+    fi
+    if [ ! -e "$source_path" ]; then
+        source_path="$SCRIPT_DIR/$INCOMING_ROOT/$source"
+    fi
+    
+    if [ ! -e "$source_path" ]; then
+        echo "Error: Source not found: $source"
+        exit 1
+    fi
+    
+    echo "Ingesting: $source_path"
+    
+    # Determine source type and process
+    if [ -f "$source_path" ]; then
+        local filename=$(basename "$source_path")
+        local ext="${filename##*.}"
+        # If no extension (ext equals filename), treat as plaintext
+        if [ "$ext" = "$filename" ]; then
+            ext="txt"
+        fi
+        case "$ext" in
+            md|txt)
+                ingest_markdown_file "$project" "$source_path"
+                ;;
+            html)
+                ingest_html_file "$project" "$source_path"
+                ;;
+            docx)
+                ingest_docx_file "$project" "$source_path"
+                ;;
+            *)
+                echo "Error: Unsupported file type: $ext"
+                exit 1
+                ;;
+        esac
+    elif [ -d "$source_path" ]; then
+        ingest_directory "$project" "$source_path"
+    fi
+    
+    # Regenerate TOC
+    cmd_toc "$project"
+    
+    # Sync with wiki
+    sync_to_wiki "$project"
+    
+    # Git commit if enabled
+    if [ "$NO_COMMIT" != "true" ] && [ "$DRY_RUN" != "true" ]; then
+        cd "$SCRIPT_DIR"
+        git add "$WORKS_ROOT/$project/" "$WIKI_ROOT/$project/" "$CANON_ROOT/$project/" 2>/dev/null || true
+        git commit -m "work: ingest content into $project" 2>/dev/null || true
+    fi
+    
+    echo ""
+    echo "✓ Ingest complete"
+    cmd_status "$project"
+}
+
+# Sync work chapters to wiki/canon structure
+sync_to_wiki() {
+    local project="$1"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project"
+    local canon_dir="$SCRIPT_DIR/$CANON_ROOT/$project/chapters"
+    
+    echo ""
+    echo "Syncing to wiki..."
+    
+    # Ensure wiki structure exists
+    mkdir -p "$wiki_dir/chapters"
+    mkdir -p "$wiki_dir/people"
+    mkdir -p "$wiki_dir/places"
+    mkdir -p "$wiki_dir/events"
+    mkdir -p "$wiki_dir/objects"
+    mkdir -p "$wiki_dir/ideas"
+    mkdir -p "$wiki_dir/.sofia"
+    mkdir -p "$canon_dir"
+    
+    # Copy chapters to canon (work is authoritative)
+    local synced=0
+    for chapter in "$chapters_dir"/*.md; do
+        [ -f "$chapter" ] || continue
+        local name=$(basename "$chapter")
+        
+        if [ "$DRY_RUN" = "true" ]; then
+            echo "  [dry-run] Would sync: $name → canon"
+        else
+            cp "$chapter" "$canon_dir/$name"
+            ((synced++))
+        fi
+    done
+    
+    echo "  Synced $synced chapters to canon"
+    
+    # Create wiki chapter index if it doesn't exist
+    local wiki_index="$wiki_dir/chapters/index.md"
+    if [ ! -f "$wiki_index" ]; then
+        local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+        cat > "$wiki_index" << EOF
+# $title - Chapters
+
+Chapter summaries and notes extracted from the manuscript.
+
+## Chapters
+
+EOF
+        for chapter in "$chapters_dir"/*.md; do
+            [ -f "$chapter" ] || continue
+            local name=$(basename "$chapter" .md)
+            local display=$(echo "$name" | sed 's/^[0-9]*-//' | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+            echo "- [[$name|$display]]" >> "$wiki_index"
+        done
+        echo "  Created wiki chapter index"
+    fi
+    
+    # Prompt for entity extraction
+    echo ""
+    echo "To extract entities from chapters, run:"
+    echo "  sofia-wiki extract $project <chapter-name>"
+    echo "Or use the loop command:"
+    echo "  sofia-wiki loop $project --json"
+}
+
+ingest_markdown_file() {
+    local project="$1"
+    local source="$2"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    local filename=$(basename "$source")
+    local name="${filename%.*}"
+    
+    # Check if file has chapter markers (# Chapter or ## Chapter)
+    if grep -qE "^#+ (Chapter|CHAPTER)" "$source"; then
+        echo "Splitting by chapter markers..."
+        split_by_chapters "$project" "$source"
+    else
+        # Single file import
+        local target="$chapters_dir/01-${name}.md"
+        if [ "$DRY_RUN" = "true" ]; then
+            echo "[dry-run] Would copy to: $target"
+        else
+            cp "$source" "$target"
+            echo "Imported as: chapters/01-${name}.md"
+        fi
+    fi
+}
+
+split_by_chapters() {
+    local project="$1"
+    local source="$2"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    python3 << EOF
+import re
+from pathlib import Path
+
+source = Path("$source")
+chapters_dir = Path("$chapters_dir")
+dry_run = "$DRY_RUN" == "true"
+
+content = source.read_text()
+
+# Split on chapter headers
+pattern = r'^(#+ (?:Chapter|CHAPTER)\s*\d*[:\s]*.*?)$'
+parts = re.split(pattern, content, flags=re.MULTILINE)
+
+chapter_num = 0
+current_title = None
+current_content = []
+
+for part in parts:
+    if re.match(pattern, part, re.MULTILINE):
+        # Save previous chapter
+        if current_title and current_content:
+            save_chapter(chapters_dir, chapter_num, current_title, current_content, dry_run)
+        
+        chapter_num += 1
+        # Extract title from header
+        title_match = re.search(r'(?:Chapter|CHAPTER)\s*\d*[:\s]*(.*)', part)
+        current_title = title_match.group(1).strip() if title_match else f"chapter-{chapter_num}"
+        current_content = [part]
+    else:
+        current_content.append(part)
+
+# Save last chapter
+if current_title and current_content:
+    save_chapter(chapters_dir, chapter_num, current_title, current_content, dry_run)
+
+def save_chapter(chapters_dir, num, title, content, dry_run):
+    # Slugify title
+    slug = re.sub(r'[^\w\s-]', '', title.lower())
+    slug = re.sub(r'[\s_]+', '-', slug).strip('-')
+    if not slug:
+        slug = f"chapter-{num}"
+    
+    filename = f"{num:02d}-{slug}.md"
+    filepath = chapters_dir / filename
+    
+    if dry_run:
+        print(f"[dry-run] Would create: {filename}")
+    else:
+        filepath.write_text(''.join(content))
+        print(f"Created: {filename}")
+
+# Handle case where no chapters found
+if chapter_num == 0:
+    print("No chapter markers found, importing as single file")
+    filename = "01-content.md"
+    if not dry_run:
+        (chapters_dir / filename).write_text(content)
+    print(f"Created: {filename}")
+EOF
+}
+
+ingest_html_file() {
+    local project="$1"
+    local source="$2"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    # Check if it's a ChatGPT export
+    if grep -q "data-message-author-role" "$source"; then
+        echo "Detected ChatGPT conversation export"
+        
+        # Use parse-chatgpt-html if available
+        if [ -x "$SCRIPT_DIR/scripts/parse-chatgpt-html" ]; then
+            local filename=$(basename "$source" .html)
+            local target="$chapters_dir/01-${filename}.md"
+            
+            if [ "$DRY_RUN" = "true" ]; then
+                echo "[dry-run] Would convert and save to: $target"
+            else
+                "$SCRIPT_DIR/scripts/parse-chatgpt-html" "$source" "$target"
+                echo "Converted and saved: chapters/01-${filename}.md"
+            fi
+        else
+            echo "Error: parse-chatgpt-html script not found"
+            exit 1
+        fi
+    else
+        # Generic HTML - use pandoc if available
+        if command -v pandoc &> /dev/null; then
+            local filename=$(basename "$source" .html)
+            local target="$chapters_dir/01-${filename}.md"
+            
+            if [ "$DRY_RUN" = "true" ]; then
+                echo "[dry-run] Would convert with pandoc to: $target"
+            else
+                pandoc -f html -t markdown "$source" -o "$target"
+                echo "Converted: chapters/01-${filename}.md"
+            fi
+        else
+            echo "Error: pandoc required for HTML conversion"
+            exit 1
+        fi
+    fi
+}
+
+ingest_docx_file() {
+    local project="$1"
+    local source="$2"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    if ! command -v pandoc &> /dev/null; then
+        echo "Error: pandoc required for docx conversion"
+        echo "Install with: brew install pandoc"
+        exit 1
+    fi
+    
+    local filename=$(basename "$source" .docx)
+    local target="$chapters_dir/01-${filename}.md"
+    
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "[dry-run] Would convert with pandoc to: $target"
+    else
+        pandoc -f docx -t markdown "$source" -o "$target"
+        echo "Converted: chapters/01-${filename}.md"
+    fi
+}
+
+ingest_directory() {
+    local project="$1"
+    local source_dir="$2"
+    
+    echo "Ingesting directory: $source_dir"
+    
+    local count=0
+    for f in "$source_dir"/*.md "$source_dir"/*.txt; do
+        [ -f "$f" ] || continue
+        ingest_markdown_file "$project" "$f"
+        ((count++))
+    done
+    
+    echo "Processed $count files"
+}
+
+# ============================================================================
+# Command: checkout
+# ============================================================================
+
+cmd_checkout() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: Project name required"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    local versions_dir="$(get_versions_dir "$project")"
+    
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        exit 1
+    fi
+    
+    # Check if already checked out
+    local checkout=$(get_work_field "$project" "checkout")
+    if [ -n "$checkout" ] && [ "$checkout" != "None" ]; then
+        echo "Error: Work is already checked out"
+        echo "Use 'sofia-work checkin $project' to complete editing"
+        exit 1
+    fi
+    
+    local version=$(get_work_field "$project" "version")
+    local snapshot_name="pre-edit-$(date +%Y%m%d-%H%M%S)"
+    local snapshot_dir="$versions_dir/$snapshot_name"
+    
+    echo "Creating snapshot: $snapshot_name"
+    
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "[dry-run] Would create snapshot at: $snapshot_dir"
+    else
+        mkdir -p "$snapshot_dir"
+        cp -r "$(get_chapters_dir "$project")" "$snapshot_dir/"
+        cp "$(get_manuscript "$project")" "$snapshot_dir/"
+        cp "$(get_orphans "$project")" "$snapshot_dir/"
+        
+        # Mark as checked out
+        update_work_json "$project" "checkout" "$snapshot_name"
+        
+        echo "✓ Checked out: $project"
+        echo "  Snapshot: versions/$snapshot_name/"
+        echo "  You can now edit chapters freely."
+        echo "  Run 'sofia-work checkin $project' when done."
+    fi
+}
+
+# ============================================================================
+# Command: checkin
+# ============================================================================
+
+cmd_checkin() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: Project name required"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        exit 1
+    fi
+    
+    # Check if checked out
+    local checkout=$(get_work_field "$project" "checkout")
+    if [ -z "$checkout" ] || [ "$checkout" = "None" ]; then
+        echo "Warning: Work is not checked out, but proceeding with checkin"
+    fi
+    
+    local version=$(get_work_field "$project" "version")
+    
+    # Bump version
+    local new_version=$(echo "$version" | awk -F. '{$NF = $NF + 1;} 1' OFS=.)
+    
+    echo "Checking in: $project"
+    echo "Version: $version → $new_version"
+    
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "[dry-run] Would update version and clear checkout"
+    else
+        # Update version
+        update_work_json "$project" "version" "$new_version"
+        
+        # Clear checkout
+        update_work_json "$project" "checkout" "null"
+        
+        # Regenerate TOC
+        cmd_toc "$project"
+        
+        # Git commit
+        if [ "$NO_COMMIT" != "true" ]; then
+            cd "$SCRIPT_DIR"
+            git add "$WORKS_ROOT/$project/"
+            git commit -m "work: checkin $project v$new_version" 2>/dev/null || true
+        fi
+        
+        echo ""
+        echo "✓ Checked in: $project v$new_version"
+    fi
+    
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        emit_status_json "Checked in $project v$new_version" \
+            "{\"project\": \"$project\", \"version\": \"$new_version\"}" \
+            "sofia-work status $project"
+    fi
+}
+
+# ============================================================================
+# Command: surface
+# ============================================================================
+
+cmd_surface() {
+    local project="$1"
+    
+    if [ -z "$project" ]; then
+        echo "Error: Project name required"
+        exit 1
+    fi
+    
+    local work_dir="$(get_work_dir "$project")"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local orphans_file="$(get_orphans "$project")"
+    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project"
+    local incoming_dir="$SCRIPT_DIR/$INCOMING_ROOT"
+    local sofia_dir="$(get_sofia_dir "$project")"
+    
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $project"
+        exit 1
+    fi
+    
+    echo "=== Surfacing Prose for: $project ==="
+    echo ""
+    
+    # Collect candidates from multiple sources
+    local candidates=()
+    local tagged=()
+    local untagged=()
+    
+    # 1. Check incoming folder for project-related files
+    echo "Scanning sources..."
+    
+    if [ -d "$incoming_dir" ]; then
+        for f in "$incoming_dir"/*.md "$incoming_dir"/*.txt; do
+            [ -f "$f" ] || continue
+            # Check if file mentions project name or has placement tags
+            if grep -qiE "(${project}|chapter:|scene:|placement:)" "$f" 2>/dev/null; then
+                candidates+=("$f")
+            fi
+        done
+    fi
+    
+    # 2. Check wiki notes for prose content
+    if [ -d "$wiki_dir" ]; then
+        for category in people places events ideas; do
+            for f in "$wiki_dir/$category"/*.md; do
+                [ -f "$f" ] || continue
+                [[ "$(basename "$f")" == "index.md" ]] && continue
+                # Check for prose sections
+                if grep -qE "^## (Prose|Scene|Draft|Content)" "$f" 2>/dev/null; then
+                    candidates+=("$f")
+                fi
+            done
+        done
+    fi
+    
+    echo "Found ${#candidates[@]} candidate files"
+    echo ""
+    
+    # 3. Classify each candidate
+    if [ ${#candidates[@]} -gt 0 ]; then
+        echo "Classifying content..."
+        echo ""
+        
+        for f in "${candidates[@]}"; do
+            local result=$("$SCRIPT_DIR/scripts/classify-prose" "$f" --json 2>/dev/null)
+            local content_type=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('type','unknown'))" 2>/dev/null)
+            local confidence=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('confidence',0))" 2>/dev/null)
+            local placement=$(echo "$result" | python3 -c "import sys,json; p=json.load(sys.stdin).get('suggested_placement',''); print(p if p and p != 'None' else '')" 2>/dev/null)
+            
+            local basename=$(basename "$f")
+            
+            if [ -n "$placement" ] && [ "$placement" != "None" ] && [ "$placement" != "null" ]; then
+                echo "  ✓ $basename → $placement (tagged)"
+                tagged+=("$f:$placement")
+            elif [ "$content_type" = "prose" ] && [ "$(echo "$confidence > 0.6" | bc)" -eq 1 ]; then
+                echo "  ? $basename → needs placement (prose, confidence: $confidence)"
+                untagged+=("$f")
+            elif [ "$content_type" = "mixed" ]; then
+                echo "  ? $basename → review needed (mixed content)"
+                untagged+=("$f")
+            else
+                echo "  - $basename → skipped (note content)"
+            fi
+        done
+    fi
+    
+    echo ""
+    
+    # 4. Process tagged items
+    if [ ${#tagged[@]} -gt 0 ]; then
+        echo "Processing ${#tagged[@]} tagged items..."
+        for item in "${tagged[@]}"; do
+            local file="${item%:*}"
+            local target="${item#*:}"
+            
+            if [ "$DRY_RUN" = "true" ]; then
+                echo "  [dry-run] Would place $(basename "$file") → $target"
+            else
+                place_prose "$project" "$file" "$target"
+            fi
+        done
+    fi
+    
+    # 5. Handle untagged items
+    if [ ${#untagged[@]} -gt 0 ]; then
+        echo ""
+        echo "${#untagged[@]} items need placement assistance"
+        
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            # Generate LLM placement prompt
+            generate_placement_prompt "$project" "${untagged[@]}"
+        else
+            echo ""
+            echo "Options:"
+            echo "  1. Add tags to files: 'chapter: 01-opening' or 'scene: the-kiss'"
+            echo "  2. Run with --json for LLM-assisted placement"
+            echo "  3. Move files to orphans manually"
+            echo ""
+            echo "Untagged files:"
+            for f in "${untagged[@]}"; do
+                echo "  - $(basename "$f")"
+            done
+        fi
+    fi
+    
+    # 6. Summary
+    echo ""
+    echo "=== Surface Summary ==="
+    echo "Tagged: ${#tagged[@]}"
+    echo "Needs placement: ${#untagged[@]}"
+    
+    # Git commit if changes made
+    if [ "$NO_COMMIT" != "true" ] && [ "$DRY_RUN" != "true" ] && [ ${#tagged[@]} -gt 0 ]; then
+        cd "$SCRIPT_DIR"
+        git add "$WORKS_ROOT/$project/" 2>/dev/null || true
+        git commit -m "work: surface ${#tagged[@]} items into $project" 2>/dev/null || true
+    fi
+}
+
+# Place prose content into a chapter or orphans
+place_prose() {
+    local project="$1"
+    local source="$2"
+    local target="$3"
+    local chapters_dir="$(get_chapters_dir "$project")"
+    local orphans_file="$(get_orphans "$project")"
+    local sofia_dir="$(get_sofia_dir "$project")"
+    
+    local source_name=$(basename "$source")
+    local content=$(cat "$source")
+    local now=$(date +"%Y-%m-%d %H:%M")
+    
+    if [ "$target" = "orphan" ] || [ "$target" = "orphans" ]; then
+        # Add to orphans file
+        cat >> "$orphans_file" << EOF
+
+## From: $source_name
+*Surfaced: $now*
+
+$content
+
+---
+EOF
+        echo "  Added to orphans: $source_name"
+    else
+        # Find or create target chapter
+        local chapter_file=""
+        
+        # Try exact match
+        if [ -f "$chapters_dir/$target.md" ]; then
+            chapter_file="$chapters_dir/$target.md"
+        elif [ -f "$chapters_dir/$target" ]; then
+            chapter_file="$chapters_dir/$target"
+        else
+            # Try partial match
+            for f in "$chapters_dir"/*"$target"*.md; do
+                if [ -f "$f" ]; then
+                    chapter_file="$f"
+                    break
+                fi
+            done
+        fi
+        
+        if [ -n "$chapter_file" ] && [ -f "$chapter_file" ]; then
+            # Append to chapter with footnote
+            cat >> "$chapter_file" << EOF
+
+---
+## Surfaced Content
+*From: $source_name | Surfaced: $now*
+
+$content
+
+EOF
+            echo "  Added to chapter: $(basename "$chapter_file")"
+        else
+            # Create as working chapter
+            local wc_file="$chapters_dir/WC-$target.md"
+            cat > "$wc_file" << EOF
+# Working Chapter: $target
+
+*Created from surfaced content: $now*
+
+$content
+EOF
+            echo "  Created working chapter: WC-$target.md"
+        fi
+    fi
+    
+    # Log placement
+    local placements_file="$sofia_dir/placements.json"
+    python3 << EOF
+import json
+from datetime import datetime
+
+placements_file = "$placements_file"
+try:
+    with open(placements_file, 'r') as f:
+        placements = json.load(f)
+except:
+    placements = []
+
+placements.append({
+    "source": "$source_name",
+    "target": "$target",
+    "timestamp": datetime.now().isoformat(),
+    "method": "tagged"
+})
+
+with open(placements_file, 'w') as f:
+    json.dump(placements, f, indent=2)
+EOF
+}
+
+# Generate LLM prompt for placement assistance
+generate_placement_prompt() {
+    local project="$1"
+    shift
+    local files=("$@")
+    local chapters_dir="$(get_chapters_dir "$project")"
+    
+    # Build chapter list
+    local chapter_list=""
+    for f in "$chapters_dir"/*.md; do
+        [ -f "$f" ] || continue
+        local name=$(basename "$f" .md)
+        chapter_list+="- $name\n"
+    done
+    
+    # Build file summaries
+    local file_summaries=""
+    for f in "${files[@]}"; do
+        local name=$(basename "$f")
+        local preview=$(head -20 "$f" | tr '\n' ' ' | cut -c1-200)
+        file_summaries+="### $name\n\`\`\`\n$preview...\n\`\`\`\n\n"
+    done
+    
+    local prompt="You are helping place prose content into a manuscript.
+
+## Available Chapters
+$chapter_list
+
+## Content to Place
+$file_summaries
+
+## Instructions
+For each piece of content, determine the best placement:
+1. If it clearly belongs in an existing chapter, specify the chapter name
+2. If it could start a new chapter, suggest 'WC-<descriptive-name>'
+3. If placement is unclear, use 'orphan'
+
+Respond with JSON array:
+\`\`\`json
+[
+  {\"file\": \"filename.md\", \"placement\": \"chapter-name\", \"confidence\": 0.8, \"reason\": \"why this placement\"},
+  ...
+]
+\`\`\`"
+
+    local data="{\"project\": \"$project\", \"files\": ${#files[@]}, \"chapters\": $(ls -1 "$chapters_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')}"
+    
+    emit_json "Ready for LLM-assisted placement" \
+        "{\"type\": \"prompt\", \"question\": \"Review and execute placement?\", \"prompt\": $(echo "$prompt" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')}" \
+        "$data" \
+        "sofia-work surface $project --apply" \
+        "false"
+}
+
+# ============================================================================
+# Argument Parsing
+# ============================================================================
+
+COMMAND=""
+PROJECT=""
+ARG2=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --json)
+            JSON_OUTPUT="true"
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        --no-commit)
+            NO_COMMIT="true"
+            shift
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            if [ -z "$COMMAND" ]; then
+                COMMAND="$1"
+            elif [ -z "$PROJECT" ]; then
+                PROJECT="$1"
+            elif [ -z "$ARG2" ]; then
+                ARG2="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+# ============================================================================
+# Command Dispatch
+# ============================================================================
+
+if [ -z "$COMMAND" ]; then
+    show_usage
+    exit 1
+fi
+
+case "$COMMAND" in
+    init)
+        cmd_init "$PROJECT"
+        ;;
+    status)
+        cmd_status "$PROJECT"
+        ;;
+    toc)
+        cmd_toc "$PROJECT"
+        ;;
+    ingest)
+        cmd_ingest "$PROJECT" "$ARG2"
+        ;;
+    checkout)
+        cmd_checkout "$PROJECT"
+        ;;
+    checkin)
+        cmd_checkin "$PROJECT"
+        ;;
+    surface)
+        cmd_surface "$PROJECT"
+        ;;
+    watch)
+        # Delegate to sofia-watch script
+        "$SCRIPT_DIR/scripts/sofia-watch" "$PROJECT" "$ARG2"
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        show_usage
+        exit 1
+        ;;
+esac

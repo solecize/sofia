@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""
+Classify content as prose, notes, or mixed.
+Used by sofia-work surface command to determine placement.
+"""
+
+import sys
+import re
+import json
+from pathlib import Path
+
+# Prose indicators
+PROSE_PATTERNS = [
+    r'"[^"]+"\s*(he|she|they|I)\s+said',  # Dialogue
+    r'\b(He|She|They|I|We)\s+(walked|ran|looked|said|thought|felt|saw|heard)',  # Narrative action
+    r'^\s*"',  # Lines starting with dialogue
+    r'\.\s*$',  # Sentences ending with periods
+    r'(morning|evening|night|day|sun|moon|sky)',  # Setting descriptions
+]
+
+# Note indicators
+NOTE_PATTERNS = [
+    r'^[-*]\s+',  # Bullet points
+    r'^\d+\.\s+',  # Numbered lists
+    r'^#+\s+',  # Headers (many of them)
+    r'TODO:|FIXME:|NOTE:|IDEA:',  # Note markers
+    r'\[\[.*?\]\]',  # Wiki links
+    r'^>\s+',  # Blockquotes
+    r'```',  # Code blocks
+]
+
+# Tag patterns for explicit placement
+TAG_PATTERNS = {
+    'chapter': r'^chapter:\s*(.+)$',
+    'scene': r'^scene:\s*(.+)$',
+    'placement': r'^placement:\s*(.+)$',
+    'type': r'^type:\s*(prose|note|mixed)$',
+}
+
+def count_patterns(text, patterns):
+    """Count how many pattern matches exist in text"""
+    count = 0
+    for pattern in patterns:
+        count += len(re.findall(pattern, text, re.MULTILINE | re.IGNORECASE))
+    return count
+
+def extract_tags(text):
+    """Extract placement tags from text"""
+    tags = {}
+    for tag_name, pattern in TAG_PATTERNS.items():
+        match = re.search(pattern, text, re.MULTILINE | re.IGNORECASE)
+        if match:
+            tags[tag_name] = match.group(1).strip()
+    return tags
+
+def classify_content(text):
+    """
+    Classify content and return classification info.
+    
+    Returns:
+        dict with:
+        - type: 'prose', 'note', or 'mixed'
+        - confidence: 0.0 to 1.0
+        - tags: any explicit placement tags found
+        - indicators: what patterns were found
+    """
+    tags = extract_tags(text)
+    
+    # If explicit type tag, use it
+    if 'type' in tags:
+        return {
+            'type': tags['type'],
+            'confidence': 1.0,
+            'tags': tags,
+            'indicators': ['explicit_tag'],
+            'suggested_placement': tags.get('chapter') or tags.get('scene') or tags.get('placement')
+        }
+    
+    prose_score = count_patterns(text, PROSE_PATTERNS)
+    note_score = count_patterns(text, NOTE_PATTERNS)
+    
+    # Word count and sentence structure
+    words = len(text.split())
+    sentences = len(re.findall(r'[.!?]+', text))
+    avg_sentence_len = words / max(sentences, 1)
+    
+    # Prose tends to have longer sentences
+    if avg_sentence_len > 15:
+        prose_score += 2
+    elif avg_sentence_len < 8:
+        note_score += 2
+    
+    # Dialogue is strong prose indicator
+    dialogue_count = len(re.findall(r'"[^"]{10,}"', text))
+    prose_score += dialogue_count * 2
+    
+    total = prose_score + note_score
+    if total == 0:
+        # Default to mixed if no clear indicators
+        content_type = 'mixed'
+        confidence = 0.3
+    elif prose_score > note_score * 2:
+        content_type = 'prose'
+        confidence = min(0.9, prose_score / (total + 5))
+    elif note_score > prose_score * 2:
+        content_type = 'note'
+        confidence = min(0.9, note_score / (total + 5))
+    else:
+        content_type = 'mixed'
+        confidence = 0.5
+    
+    indicators = []
+    if dialogue_count > 0:
+        indicators.append(f'dialogue:{dialogue_count}')
+    if prose_score > 0:
+        indicators.append(f'prose_patterns:{prose_score}')
+    if note_score > 0:
+        indicators.append(f'note_patterns:{note_score}')
+    
+    return {
+        'type': content_type,
+        'confidence': round(confidence, 2),
+        'tags': tags,
+        'indicators': indicators,
+        'suggested_placement': tags.get('chapter') or tags.get('scene') or tags.get('placement'),
+        'word_count': words,
+        'avg_sentence_length': round(avg_sentence_len, 1)
+    }
+
+def classify_file(filepath):
+    """Classify a file and return results"""
+    path = Path(filepath)
+    if not path.exists():
+        return {'error': f'File not found: {filepath}'}
+    
+    text = path.read_text(encoding='utf-8')
+    result = classify_content(text)
+    result['file'] = str(path.name)
+    result['path'] = str(path)
+    
+    return result
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: classify-prose <file> [--json]")
+        print("       classify-prose --batch <dir> [--json]")
+        sys.exit(1)
+    
+    json_output = '--json' in sys.argv
+    
+    if sys.argv[1] == '--batch':
+        if len(sys.argv) < 3:
+            print("Error: --batch requires a directory")
+            sys.exit(1)
+        
+        directory = Path(sys.argv[2])
+        results = []
+        
+        for f in directory.glob('*.md'):
+            result = classify_file(f)
+            results.append(result)
+        
+        if json_output:
+            print(json.dumps(results, indent=2))
+        else:
+            for r in results:
+                placement = r.get('suggested_placement', 'none')
+                print(f"{r['file']}: {r['type']} (confidence: {r['confidence']}, placement: {placement})")
+    else:
+        filepath = sys.argv[1]
+        if filepath == '--json':
+            filepath = sys.argv[2] if len(sys.argv) > 2 else None
+            if not filepath:
+                print("Error: file path required")
+                sys.exit(1)
+        
+        result = classify_file(filepath)
+        
+        if json_output:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"File: {result.get('file', 'unknown')}")
+            print(f"Type: {result['type']}")
+            print(f"Confidence: {result['confidence']}")
+            if result.get('tags'):
+                print(f"Tags: {result['tags']}")
+            if result.get('suggested_placement'):
+                print(f"Suggested Placement: {result['suggested_placement']}")
+            print(f"Indicators: {', '.join(result.get('indicators', []))}")
+
+if __name__ == '__main__':
+    main()
