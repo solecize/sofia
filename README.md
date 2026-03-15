@@ -179,6 +179,26 @@ make install  # Copy to /usr/local/bin
 
 MIT
 
+## Tools
+
+### Notator
+Organize notes without adding prose. Moves files, applies naming conventions, tracks changes.
+
+### Sofia Work
+Manage manuscripts with chapter organization, versioning, and wiki sync.
+
+```bash
+sofia-work init prince-of-loves
+sofia-work ingest prince-of-loves manuscript.md
+sofia-work watch prince-of-loves    # Auto-commit on save
+sofia-work checkin prince-of-loves  # Version bump
+```
+
+### Sofia Wiki
+Extract entities and track continuity across chapters.
+
+See [documentation/](documentation/) for full details.
+
 ## Status
 
-MVP complete. Notator is the first tool; others may follow.
+MVP complete. Notator, Sofia Work, and Sofia Wiki are functional.

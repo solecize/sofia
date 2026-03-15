@@ -249,9 +249,30 @@ JSON Lines format:
 
 ---
 
+## Additional Tools
+
+### Sofia Work
+
+Manuscript management CLI for structured writing projects. See [sofia-work.md](sofia-work.md).
+
+**Commands:** `init`, `ingest`, `status`, `toc`, `checkout`, `checkin`, `surface`, `watch`
+
+**Key features:**
+- Chapter-based manuscript organization
+- Git micro-commits via watch daemon
+- Prose surfacing from notes with LLM assistance
+- Wiki and canon directory sync
+
+### Sofia Wiki
+
+Entity extraction and continuity tracking for fiction projects.
+
+**Commands:** `ingest`, `extract`, `status`, `sync`, `resolve`, `entities`, `validate`, `deprecate`
+
+---
+
 ## Future Work
 
-- Additional tools beyond Notator
 - SQLite continuity store for cross-session queries
 - Jinja2 templating for complex prompt composition
 - TUI preview mode
