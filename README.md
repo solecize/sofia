@@ -1,5 +1,9 @@
 # Sofia
 
+<p align="center">
+  <img src="assets/sofia-01.png" alt="Sofia" width="200">
+</p>
+
 **A prompt composer for writers who need to organize, not improvise.**
 
 Sofia is a CLI tool that generates structured, repeatable prompts for LLM-driven writing workflows. Instead of asking an AI to create content, Sofia instructs it to *organize your content*—sorting notes, enforcing naming conventions, and tracking changes without creative interference.
