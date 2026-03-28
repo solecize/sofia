@@ -22,16 +22,8 @@ __pycache__/
 # ChatGPT exports (large binary files)
 notes/incoming/notes-download-*/
 
-# Manuscript files (large, user-specific)
-notes/incoming/error-correction-current-draft/
-
 # Generated prompts (can be regenerated)
 notes/wiki/*/prompts/
-
-# Scrivener projects
-*.scriv/
-*.scrivx
-*.dat
 
 # Binary media in user content directories only
 corpus/**/*.png
