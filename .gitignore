@@ -19,9 +19,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-# ChatGPT exports (large binary files)
-notes/incoming/notes-download-*/
-
 # Generated prompts (can be regenerated)
 notes/wiki/*/prompts/
 
