@@ -94,8 +94,31 @@ class AppState: ObservableObject {
     @Published var isWatching: Bool = false
     @Published var isLocked: Bool = false
     
+    // Editor preferences
+    @AppStorage("environmentEditor") var environmentEditor: String = "windsurf"
+    @AppStorage("documentEditor") var documentEditor: String = "system"
+    
     private var fileWatcher: FileWatcher?
     private var gitService: GitService?
+    
+    // Known editors with their CLI paths
+    static let environmentEditors: [(name: String, id: String, path: String)] = [
+        ("Windsurf", "windsurf", "/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"),
+        ("Cursor", "cursor", "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"),
+        ("VS Code", "vscode", "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"),
+        ("OS Default", "system", "")
+    ]
+    
+    static let documentEditors: [(name: String, id: String, path: String)] = [
+        ("Typora", "typora", "/Applications/Typora.app"),
+        ("iA Writer", "iawriter", "/Applications/iA Writer.app"),
+        ("Obsidian", "obsidian", "/Applications/Obsidian.app"),
+        ("OS Default", "system", "")
+    ]
+    
+    // File extensions for each category
+    static let documentExtensions: Set<String> = ["md", "txt", "rtf", "markdown"]
+    static let environmentExtensions: Set<String> = ["swift", "sh", "json", "toml", "yml", "yaml", "py", "js", "ts", "jsx", "tsx"]
     
     var statusIcon: String {
         if pendingChanges > 0 {
@@ -115,6 +138,14 @@ class AppState: ObservableObject {
         } else {
             return .secondary
         }
+    }
+    
+    var environmentEditorName: String {
+        Self.environmentEditors.first(where: { $0.id == environmentEditor })?.name ?? "Editor"
+    }
+    
+    var documentEditorName: String {
+        Self.documentEditors.first(where: { $0.id == documentEditor })?.name ?? "Editor"
     }
     
     init() {
@@ -265,22 +296,78 @@ class AppState: ObservableObject {
         let targetPath = path ?? activeEnvironment?.path ?? ""
         guard !targetPath.isEmpty else { return }
         
-        // Try Windsurf first, then Cursor, then VS Code
-        let editors = [
-            "/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf",
-            "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
-            "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
-        ]
+        // Determine which editor to use based on file extension
+        let url = URL(fileURLWithPath: targetPath)
+        let ext = url.pathExtension.lowercased()
         
-        for editor in editors {
-            if FileManager.default.fileExists(atPath: editor) {
+        // Check if it's a directory (use environment editor)
+        var isDirectory: ObjCBool = false
+        let isDir = FileManager.default.fileExists(atPath: targetPath, isDirectory: &isDirectory) && isDirectory.boolValue
+        
+        let isDocumentFile = Self.documentExtensions.contains(ext)
+        let editorId: String
+        
+        if isDir || Self.environmentExtensions.contains(ext) || ext.isEmpty {
+            editorId = environmentEditor
+        } else if isDocumentFile {
+            editorId = documentEditor
+        } else {
+            // Default to environment editor for unknown types
+            editorId = environmentEditor
+        }
+        
+        // Use system default if selected
+        if editorId == "system" {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        
+        // For document files, use NSWorkspace to open with the app
+        if isDocumentFile {
+            if let editor = Self.documentEditors.first(where: { $0.id == editorId }) {
+                if FileManager.default.fileExists(atPath: editor.path) {
+                    NSWorkspace.shared.open(
+                        [url],
+                        withApplicationAt: URL(fileURLWithPath: editor.path),
+                        configuration: NSWorkspace.OpenConfiguration()
+                    ) { _, error in
+                        if let error = error {
+                            print("Error opening with \(editor.name): \(error)")
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    return
+                }
+            }
+            // Fallback to system default for documents
+            NSWorkspace.shared.open(url)
+            return
+        }
+        
+        // For environment files/directories, use CLI tools
+        if let editor = Self.environmentEditors.first(where: { $0.id == editorId }) {
+            if FileManager.default.fileExists(atPath: editor.path) {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: editor)
+                process.executableURL = URL(fileURLWithPath: editor.path)
                 process.arguments = [targetPath]
                 try? process.run()
                 return
             }
         }
+        
+        // Fallback: try any installed environment editor
+        for editor in Self.environmentEditors where editor.id != "system" {
+            if FileManager.default.fileExists(atPath: editor.path) {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: editor.path)
+                process.arguments = [targetPath]
+                try? process.run()
+                return
+            }
+        }
+        
+        // Last resort: system default
+        NSWorkspace.shared.open(url)
     }
     
     func startTutorial() {
