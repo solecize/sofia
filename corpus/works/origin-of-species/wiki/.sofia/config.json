@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "project": "origin-of-species",
+  "created": "2026-03-21T15:30:04Z",
+  "work_profile": "../.sofia/profile.md",
+  "settings": {
+    "autoExtract": true,
+    "conflictDetection": "automatic",
+    "chunkGranularity": "per-field",
+    "commitOnIngest": true,
+    "commitOnUpdate": true
+  }
+}
