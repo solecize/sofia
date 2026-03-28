@@ -10,12 +10,26 @@ Your Sofia environment contains your writing projects. Treat it with care.
 
 | Directory | Contents |
 |-----------|----------|
-| `corpus/works/` | Your writing projects (manuscripts, chapters, notes) |
+| `corpus/works/` | Your writing projects |
+| `corpus/incoming/` | Raw imports waiting to be processed |
 | `library/` | Prompt library (switches, variables, profiles) |
 | `config/` | Your configuration and workspaces |
 | `sessions/` | Session manifests and generated prompts |
-| `notes/` | Your notes, incoming content, wiki entries |
 | `scripts/` | Sofia CLI tools (sofia-work, sofia-wiki, etc.) |
+
+## Work Structure
+
+Each project in `corpus/works/<project>/` contains:
+
+| Directory/File | Contents |
+|----------------|----------|
+| `chapters/` | Chapter files (01-chapter-one.md, etc.) |
+| `notes/` | Chapter notes and working notebook |
+| `notes/notebook.md` | Working hub for this project |
+| `notes/<chapter>-notes.md` | Summary and reference links for each chapter |
+| `reference/` | Characters, places, objects, events, themes |
+| `manuscript.md` | Table of contents / compiled view |
+| `orphans.md` | Unplaced prose |
 
 ## Protecting Your Work
 
