@@ -94,23 +94,64 @@ struct PreferencesView: View {
             
             // Editor Tab
             VStack(alignment: .leading, spacing: 16) {
-                Text("Editor")
+                Text("Editors")
                     .font(.headline)
                 
-                Text("Select your preferred code editor:")
-                    .foregroundColor(.secondary)
-                
+                // Environment Editor Section
                 VStack(alignment: .leading, spacing: 8) {
-                    EditorOption(name: "Windsurf", path: "/Applications/Windsurf.app")
-                    EditorOption(name: "Cursor", path: "/Applications/Cursor.app")
-                    EditorOption(name: "VS Code", path: "/Applications/Visual Studio Code.app")
+                    Text("Environment Editor")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("For directories, scripts, and code files")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $appState.environmentEditor) {
+                        ForEach(AppState.environmentEditors, id: \.id) { editor in
+                            HStack {
+                                Text(editor.name)
+                                if !editor.path.isEmpty && !FileManager.default.fileExists(atPath: editor.path) {
+                                    Text("(not installed)")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .tag(editor.id)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
+                }
+                
+                Divider()
+                
+                // Document Editor Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Document Editor")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("For markdown, text, and prose files")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $appState.documentEditor) {
+                        ForEach(AppState.documentEditors, id: \.id) { editor in
+                            HStack {
+                                Text(editor.name)
+                                if !editor.path.isEmpty && !FileManager.default.fileExists(atPath: editor.path) {
+                                    Text("(not installed)")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .tag(editor.id)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
                 }
                 
                 Spacer()
             }
             .padding()
             .tabItem {
-                Label("Editor", systemImage: "chevron.left.forwardslash.chevron.right")
+                Label("Editors", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             
             // General Tab
