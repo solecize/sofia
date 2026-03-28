@@ -100,7 +100,7 @@ Chapters: 12
 
 Chapter List:
   01-variation-under-domestication (95 lines)
-  02-thief-delivers-a-song-of-simon (9 lines)
+  02-variation-under-nature (87 lines)
   ...
 ```
 
