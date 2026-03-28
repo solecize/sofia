@@ -1,3 +1,5 @@
+> **AI Assistants:** Read [LLM_START_HERE.md](LLM_START_HERE.md) before helping organize writing.
+
 # Sofia
 
 <p align="center">
