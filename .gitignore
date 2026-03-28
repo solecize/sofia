@@ -27,17 +27,30 @@ notes/incoming/error-correction-current-draft/
 
 # Generated prompts (can be regenerated)
 notes/wiki/*/prompts/
+
+# Scrivener projects
 *.scriv/
 *.scrivx
 *.dat
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.wav
-*.mp3
-*.mp4
 
-# Keep markdown and text files
-!*.md
-!*.txt
+# Binary media in user content directories only
+corpus/**/*.png
+corpus/**/*.jpg
+corpus/**/*.jpeg
+corpus/**/*.gif
+corpus/**/*.wav
+corpus/**/*.mp3
+corpus/**/*.mp4
+notes/**/*.png
+notes/**/*.jpg
+notes/**/*.jpeg
+notes/**/*.gif
+notes/**/*.wav
+notes/**/*.mp3
+notes/**/*.mp4
+
+# Include project assets (documentation, app icons)
+!assets/**
+!SofiaMonitor/**/*.png
+!SofiaMonitor/**/*.svg
+!SofiaMonitor/**/*.icns
