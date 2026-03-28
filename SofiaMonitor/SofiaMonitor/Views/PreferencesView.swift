@@ -132,6 +132,27 @@ struct PreferencesView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
+                Divider()
+                
+                Toggle(isOn: Binding(
+                    get: { appState.tutorialMode },
+                    set: { appState.tutorialMode = $0 }
+                )) {
+                    VStack(alignment: .leading) {
+                        Text("Tutorial Mode")
+                        Text("Show guided prompts when processing content")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                if appState.tutorialMode {
+                    Button("Start Tutorial") {
+                        appState.startTutorial()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                
                 Spacer()
             }
             .padding()
