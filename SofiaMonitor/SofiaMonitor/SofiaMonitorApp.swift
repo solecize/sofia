@@ -28,6 +28,7 @@ class AppState: ObservableObject {
     @Published var pendingChanges: Int = 0
     @Published var isWatching: Bool = false
     @Published var isLocked: Bool = false
+    @Published var tutorialMode: Bool = false
     
     private var fileWatcher: FileWatcher?
     private var gitService: GitService?
@@ -164,6 +165,35 @@ class AppState: ObservableObject {
                 process.arguments = [targetPath]
                 try? process.run()
                 return
+            }
+        }
+    }
+    
+    func startTutorial() {
+        guard let envPath = activeEnvironment?.path else { return }
+        
+        let tutorialScript = URL(fileURLWithPath: envPath)
+            .appendingPathComponent("scripts")
+            .appendingPathComponent("sofia-tutorial")
+        
+        guard FileManager.default.fileExists(atPath: tutorialScript.path) else {
+            print("Tutorial script not found at: \(tutorialScript.path)")
+            return
+        }
+        
+        // Open terminal and run tutorial
+        let script = """
+        tell application "Terminal"
+            activate
+            do script "cd '\(envPath)' && ./scripts/sofia-tutorial"
+        end tell
+        """
+        
+        var error: NSDictionary?
+        if let appleScript = NSAppleScript(source: script) {
+            appleScript.executeAndReturnError(&error)
+            if let error = error {
+                print("AppleScript error: \(error)")
             }
         }
     }
