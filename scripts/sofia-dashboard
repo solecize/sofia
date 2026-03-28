@@ -117,8 +117,9 @@ generate_dashboard() {
         [ -d "$work_dir" ] || continue
         local work_name=$(basename "$work_dir")
         
-        # Skip template-work
-        [ "$work_name" = "template-work" ] && continue
+        # Skip hidden directories and template directories
+        [[ "$work_name" == .* ]] && continue
+        [[ "$work_name" == template-* ]] && continue
         
         local words=$(get_word_count "$work_dir")
         local chapters=$(get_chapter_count "$work_dir")
@@ -145,7 +146,8 @@ generate_dashboard() {
     for work_dir in "$WORKS_DIR"/*/; do
         [ -d "$work_dir" ] || continue
         local work_name=$(basename "$work_dir")
-        [ "$work_name" = "template-work" ] && continue
+        [[ "$work_name" == .* ]] && continue
+        [[ "$work_name" == template-* ]] && continue
         
         local last_edit=$(get_last_edit "$work_dir")
         echo "**$work_name** ($last_edit)"
@@ -175,7 +177,8 @@ generate_json() {
     for work_dir in "$WORKS_DIR"/*/; do
         [ -d "$work_dir" ] || continue
         local work_name=$(basename "$work_dir")
-        [ "$work_name" = "template-work" ] && continue
+        [[ "$work_name" == .* ]] && continue
+        [[ "$work_name" == template-* ]] && continue
         
         local words=$(get_word_count "$work_dir")
         local chapters=$(get_chapter_count "$work_dir")
