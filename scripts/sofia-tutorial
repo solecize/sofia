@@ -1,0 +1,768 @@
+#!/bin/bash
+# sofia-tutorial: Interactive tutorial mode for Sofia
+# Usage: sofia-tutorial [--resume]
+#
+# Guides users through processing content with conversational prompts.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WORKS_ROOT="corpus/works"
+INCOMING_ROOT="corpus/incoming"
+TUTORIAL_CONTENT="corpus/incoming/tutorial"
+STATE_FILE="$HOME/.sofia/tutorial-state.json"
+CREATED_FILE="$HOME/.sofia/tutorial-created.json"
+
+# Colors for output
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# ============================================================================
+# State Management
+# ============================================================================
+
+init_state() {
+    mkdir -p "$(dirname "$STATE_FILE")"
+    if [ ! -f "$STATE_FILE" ]; then
+        cat > "$STATE_FILE" << 'EOF'
+{
+  "enabled": true,
+  "current_work": null,
+  "completed_steps": [],
+  "last_milestone": "start"
+}
+EOF
+    fi
+}
+
+get_state() {
+    local key="$1"
+    python3 -c "import json; print(json.load(open('$STATE_FILE')).get('$key', ''))" 2>/dev/null || echo ""
+}
+
+set_state() {
+    local key="$1"
+    local value="$2"
+    python3 -c "
+import json
+with open('$STATE_FILE', 'r') as f:
+    state = json.load(f)
+state['$key'] = $value
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+"
+}
+
+add_completed_step() {
+    local step="$1"
+    python3 -c "
+import json
+with open('$STATE_FILE', 'r') as f:
+    state = json.load(f)
+if '$step' not in state.get('completed_steps', []):
+    state.setdefault('completed_steps', []).append('$step')
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+"
+}
+
+reset_state() {
+    rm -f "$STATE_FILE"
+    init_state
+}
+
+# ============================================================================
+# Content Tracking (for cleanup)
+# ============================================================================
+
+init_tracking() {
+    if [ ! -f "$CREATED_FILE" ]; then
+        cat > "$CREATED_FILE" << 'EOF'
+{
+  "created_works": [],
+  "copied_files": [],
+  "created_at": null
+}
+EOF
+    fi
+}
+
+track_created_work() {
+    local work_path="$1"
+    python3 -c "
+import json
+from datetime import datetime
+with open('$CREATED_FILE', 'r') as f:
+    data = json.load(f)
+if '$work_path' not in data.get('created_works', []):
+    data.setdefault('created_works', []).append('$work_path')
+    data['created_at'] = datetime.utcnow().isoformat() + 'Z'
+with open('$CREATED_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+}
+
+track_copied_file() {
+    local file_path="$1"
+    python3 -c "
+import json
+from datetime import datetime
+with open('$CREATED_FILE', 'r') as f:
+    data = json.load(f)
+if '$file_path' not in data.get('copied_files', []):
+    data.setdefault('copied_files', []).append('$file_path')
+    data['created_at'] = datetime.utcnow().isoformat() + 'Z'
+with open('$CREATED_FILE', 'w') as f:
+    json.dump(data, f, indent=2)
+"
+}
+
+install_cleanup_script() {
+    local cleanup_script="$HOME/.sofia/tutorial-cleanup"
+    cat > "$cleanup_script" << 'CLEANUP_EOF'
+#!/bin/bash
+# tutorial-cleanup: Remove content created by sofia-tutorial
+# This script is LOCAL ONLY and not part of the Sofia repository.
+
+set -e
+
+CREATED_FILE="$HOME/.sofia/tutorial-created.json"
+SOFIA_DIR=""
+
+# Find Sofia directory
+for dir in ~/Documents/sofia ~/Documents/writelab; do
+    if [ -d "$dir/corpus" ]; then
+        SOFIA_DIR="$dir"
+        break
+    fi
+done
+
+if [ -z "$SOFIA_DIR" ]; then
+    echo "Error: Could not find Sofia directory"
+    exit 1
+fi
+
+if [ ! -f "$CREATED_FILE" ]; then
+    echo "No tutorial content to clean up."
+    exit 0
+fi
+
+# Read tracking file
+created_works=$(python3 -c "import json; print('\n'.join(json.load(open('$CREATED_FILE')).get('created_works', [])))" 2>/dev/null)
+copied_files=$(python3 -c "import json; print('\n'.join(json.load(open('$CREATED_FILE')).get('copied_files', [])))" 2>/dev/null)
+
+if [ -z "$created_works" ] && [ -z "$copied_files" ]; then
+    echo "No tutorial content to clean up."
+    exit 0
+fi
+
+echo "The following tutorial-created content will be removed:"
+echo ""
+
+if [ -n "$created_works" ]; then
+    echo "Works:"
+    echo "$created_works" | while read work; do
+        [ -n "$work" ] && echo "  - $SOFIA_DIR/$work"
+    done
+fi
+
+if [ -n "$copied_files" ]; then
+    echo "Files:"
+    echo "$copied_files" | while read file; do
+        [ -n "$file" ] && echo "  - $SOFIA_DIR/$file"
+    done
+fi
+
+echo ""
+read -p "Are you sure you want to delete this content? [y/N] " confirm
+
+if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+    echo "Cancelled."
+    exit 0
+fi
+
+# Delete works
+echo "$created_works" | while read work; do
+    if [ -n "$work" ] && [ -d "$SOFIA_DIR/$work" ]; then
+        echo "Removing $work..."
+        rm -rf "$SOFIA_DIR/$work"
+    fi
+done
+
+# Delete files
+echo "$copied_files" | while read file; do
+    if [ -n "$file" ] && [ -f "$SOFIA_DIR/$file" ]; then
+        echo "Removing $file..."
+        rm -f "$SOFIA_DIR/$file"
+    fi
+done
+
+# Reset tracking file
+cat > "$CREATED_FILE" << 'EOF'
+{
+  "created_works": [],
+  "copied_files": [],
+  "created_at": null
+}
+EOF
+
+# Reset tutorial state
+rm -f "$HOME/.sofia/tutorial-state.json"
+
+echo ""
+echo "Tutorial content cleaned up."
+CLEANUP_EOF
+
+    chmod +x "$cleanup_script"
+    echo "Cleanup script installed at: $cleanup_script"
+    echo "Run it anytime with: ~/.sofia/tutorial-cleanup"
+}
+
+# ============================================================================
+# UI Helpers
+# ============================================================================
+
+print_header() {
+    echo ""
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${CYAN}  Sofia Tutorial${NC}"
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════${NC}"
+    echo ""
+}
+
+print_section() {
+    echo ""
+    echo -e "${BOLD}$1${NC}"
+    echo ""
+}
+
+print_choice() {
+    local num="$1"
+    local text="$2"
+    echo -e "  ${GREEN}[$num]${NC} $text"
+}
+
+print_info() {
+    echo -e "${YELLOW}→${NC} $1"
+}
+
+ask_choice() {
+    local prompt="$1"
+    shift
+    local choices=("$@")
+    
+    echo "" >&2
+    echo -e "${BOLD}$prompt${NC}" >&2
+    echo "" >&2
+    
+    local i=1
+    for choice in "${choices[@]}"; do
+        echo -e "  ${GREEN}[$i]${NC} $choice" >&2
+        ((i++))
+    done
+    
+    echo "" >&2
+    read -p "Enter choice (1-${#choices[@]}): " choice
+    echo "$choice"
+}
+
+ask_text() {
+    local prompt="$1"
+    echo ""
+    read -p "$prompt " answer
+    echo "$answer"
+}
+
+ask_yes_no() {
+    local prompt="$1"
+    echo ""
+    read -p "$prompt [y/n]: " answer
+    case "$answer" in
+        [Yy]|[Yy][Ee][Ss]) echo "yes" ;;
+        *) echo "no" ;;
+    esac
+}
+
+# ============================================================================
+# State Detection
+# ============================================================================
+
+count_works() {
+    local count=0
+    if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
+        for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
+            local name=$(basename "$dir")
+            [ -d "$dir" ] && [[ "$name" != .* ]] && [[ "$name" != template-* ]] && ((count++))
+        done
+    fi
+    echo "$count"
+}
+
+count_incoming() {
+    local count=0
+    if [ -d "$SCRIPT_DIR/$INCOMING_ROOT" ]; then
+        count=$(find "$SCRIPT_DIR/$INCOMING_ROOT" -maxdepth 1 -name "*.md" -o -name "*.txt" 2>/dev/null | wc -l | tr -d '[:space:]')
+    fi
+    echo "${count:-0}"
+}
+
+has_tutorial_content() {
+    [ -d "$SCRIPT_DIR/$TUTORIAL_CONTENT" ] && [ "$(ls -A "$SCRIPT_DIR/$TUTORIAL_CONTENT" 2>/dev/null)" ]
+}
+
+list_works() {
+    if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
+        for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
+            local name=$(basename "$dir")
+            [ -d "$dir" ] && [[ "$name" != .* ]] && [[ "$name" != template-* ]] && echo "$name"
+        done
+    fi
+}
+
+list_incoming() {
+    if [ -d "$SCRIPT_DIR/$INCOMING_ROOT" ]; then
+        find "$SCRIPT_DIR/$INCOMING_ROOT" -maxdepth 1 \( -name "*.md" -o -name "*.txt" \) -exec basename {} \; 2>/dev/null
+    fi
+}
+
+list_tutorial_content() {
+    if [ -d "$SCRIPT_DIR/$TUTORIAL_CONTENT" ]; then
+        ls -1 "$SCRIPT_DIR/$TUTORIAL_CONTENT"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/-raw\.md$//'
+    fi
+}
+
+# ============================================================================
+# Tutorial Steps
+# ============================================================================
+
+step_welcome() {
+    print_header
+    echo "Welcome to Sofia! This tutorial will guide you through"
+    echo "organizing your writing with Sofia's tools."
+    echo ""
+    echo "You can exit at any time by pressing Ctrl+C."
+    echo "Your progress will be saved automatically."
+    echo ""
+    
+    local choice=$(ask_choice "What would you like to do?" \
+        "Start the tutorial with demo content" \
+        "Use my own content" \
+        "Just explore on my own")
+    
+    case "$choice" in
+        1) step_demo_content ;;
+        2) step_user_content ;;
+        3) 
+            echo ""
+            print_info "No problem! Run 'sofia-work --help' to see available commands."
+            print_info "You can restart the tutorial anytime with 'sofia-tutorial'."
+            exit 0
+            ;;
+        *) step_welcome ;;
+    esac
+}
+
+step_demo_content() {
+    print_section "Demo Content"
+    
+    if ! has_tutorial_content; then
+        echo "No tutorial content found in $TUTORIAL_CONTENT"
+        exit 1
+    fi
+    
+    echo "Sofia includes sample texts from public domain works:"
+    echo ""
+    
+    local demos=($(list_tutorial_content))
+    local choices=()
+    for demo in "${demos[@]}"; do
+        case "$demo" in
+            christmas-carol) choices+=("A Christmas Carol (Charles Dickens)") ;;
+            frankenstein) choices+=("Frankenstein (Mary Shelley)") ;;
+            origin-of-species) choices+=("On the Origin of Species (Charles Darwin)") ;;
+            *) choices+=("$demo") ;;
+        esac
+    done
+    
+    local choice=$(ask_choice "Which would you like to work with?" "${choices[@]}")
+    
+    local selected="${demos[$((choice-1))]}"
+    if [ -z "$selected" ]; then
+        step_demo_content
+        return
+    fi
+    
+    # Copy tutorial content to incoming
+    cp "$SCRIPT_DIR/$TUTORIAL_CONTENT/${selected}-raw.md" "$SCRIPT_DIR/$INCOMING_ROOT/"
+    track_copied_file "$INCOMING_ROOT/${selected}-raw.md"
+    print_info "Copied ${selected} to incoming/"
+    
+    set_state "current_demo" "\"$selected\""
+    add_completed_step "select_demo"
+    
+    step_import_content "$selected"
+}
+
+step_user_content() {
+    print_section "Your Content"
+    
+    local incoming_count=$(count_incoming)
+    
+    if [ "$incoming_count" -eq 0 ]; then
+        echo "You don't have any content in incoming/ yet."
+        echo ""
+        echo "To add content:"
+        echo "  1. Copy your .md or .txt files to: $SCRIPT_DIR/$INCOMING_ROOT/"
+        echo "  2. Run 'sofia-tutorial' again"
+        echo ""
+        
+        local choice=$(ask_choice "What would you like to do?" \
+            "Use demo content instead" \
+            "Exit and add my own content")
+        
+        case "$choice" in
+            1) step_demo_content ;;
+            *) exit 0 ;;
+        esac
+    else
+        echo "Found $incoming_count file(s) in incoming/:"
+        echo ""
+        list_incoming | while read f; do
+            echo "  - $f"
+        done
+        
+        step_import_content "your-work"
+    fi
+}
+
+step_import_content() {
+    local suggested_name="$1"
+    
+    print_section "Create a New Work"
+    
+    local works_count=$(count_works)
+    
+    if [ "$works_count" -gt 0 ]; then
+        echo "You have existing works:"
+        list_works | while read w; do
+            echo "  - $w"
+        done
+        echo ""
+        
+        local choice=$(ask_choice "Would you like to:" \
+            "Create a new work" \
+            "Add to an existing work")
+        
+        case "$choice" in
+            1) ;;
+            2) 
+                local work_name=$(ask_text "Which work? ")
+                step_add_to_work "$work_name"
+                return
+                ;;
+        esac
+    fi
+    
+    local work_name=$(ask_text "What would you like to name this work? [$suggested_name]")
+    [ -z "$work_name" ] && work_name="$suggested_name"
+    
+    # Sanitize name
+    work_name=$(echo "$work_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-')
+    
+    print_info "Creating work: $work_name"
+    "$SCRIPT_DIR/scripts/sofia-work" init "$work_name" 2>/dev/null || true
+    track_created_work "$WORKS_ROOT/$work_name"
+    
+    set_state "current_work" "\"$work_name\""
+    add_completed_step "create_work"
+    
+    step_run_ingest "$work_name"
+}
+
+step_add_to_work() {
+    local work_name="$1"
+    
+    if [ ! -d "$SCRIPT_DIR/$WORKS_ROOT/$work_name" ]; then
+        echo "Work not found: $work_name"
+        step_import_content "new-work"
+        return
+    fi
+    
+    set_state "current_work" "\"$work_name\""
+    step_run_ingest "$work_name"
+}
+
+step_run_ingest() {
+    local work_name="$1"
+    
+    print_section "Import Content"
+    
+    local files=($(list_incoming))
+    
+    if [ ${#files[@]} -eq 0 ]; then
+        echo "No files to import."
+        step_next_actions "$work_name"
+        return
+    fi
+    
+    echo "Ready to import ${#files[@]} file(s) into '$work_name':"
+    for f in "${files[@]}"; do
+        echo "  - $f"
+    done
+    
+    local choice=$(ask_choice "How would you like to proceed?" \
+        "Import all files" \
+        "Preview files first" \
+        "Skip import")
+    
+    case "$choice" in
+        1)
+            for f in "${files[@]}"; do
+                print_info "Importing $f..."
+                "$SCRIPT_DIR/scripts/sofia-work" ingest "$work_name" "$SCRIPT_DIR/$INCOMING_ROOT/$f" 2>/dev/null || true
+            done
+            add_completed_step "ingest"
+            step_after_ingest "$work_name"
+            ;;
+        2)
+            for f in "${files[@]}"; do
+                echo ""
+                echo "=== $f ==="
+                head -20 "$SCRIPT_DIR/$INCOMING_ROOT/$f"
+                echo "..."
+            done
+            step_run_ingest "$work_name"
+            ;;
+        3)
+            step_next_actions "$work_name"
+            ;;
+    esac
+}
+
+step_after_ingest() {
+    local work_name="$1"
+    
+    print_section "Content Imported"
+    
+    local chapters_dir="$SCRIPT_DIR/$WORKS_ROOT/$work_name/chapters"
+    local chapter_count=0
+    [ -d "$chapters_dir" ] && chapter_count=$(ls -1 "$chapters_dir"/*.md 2>/dev/null | wc -l | tr -d '[:space:]')
+    
+    echo "Your content has been imported into '$work_name'."
+    echo "Chapters created: $chapter_count"
+    echo ""
+    
+    local choice=$(ask_choice "What would you like to do next?" \
+        "Review the chapter structure" \
+        "Extract entities (characters, places, etc.)" \
+        "Start editing" \
+        "See all options")
+    
+    case "$choice" in
+        1) step_review_structure "$work_name" ;;
+        2) step_extract_entities "$work_name" ;;
+        3) step_start_editing "$work_name" ;;
+        4) step_next_actions "$work_name" ;;
+    esac
+}
+
+step_review_structure() {
+    local work_name="$1"
+    
+    print_section "Chapter Structure"
+    
+    "$SCRIPT_DIR/scripts/sofia-work" status "$work_name"
+    
+    add_completed_step "review_structure"
+    
+    local choice=$(ask_choice "What would you like to do?" \
+        "Extract entities from chapters" \
+        "Start editing" \
+        "See all options")
+    
+    case "$choice" in
+        1) step_extract_entities "$work_name" ;;
+        2) step_start_editing "$work_name" ;;
+        3) step_next_actions "$work_name" ;;
+    esac
+}
+
+step_extract_entities() {
+    local work_name="$1"
+    
+    print_section "Entity Extraction"
+    
+    echo "Sofia can extract characters, places, and other entities"
+    echo "from your chapters to help track continuity."
+    echo ""
+    
+    local choice=$(ask_choice "Would you like to:" \
+        "Extract entities from all chapters" \
+        "Extract from a specific chapter" \
+        "Skip for now")
+    
+    case "$choice" in
+        1)
+            print_info "Running entity extraction..."
+            "$SCRIPT_DIR/scripts/sofia-wiki" ingest "$work_name" 2>/dev/null || echo "(Entity extraction not fully implemented yet)"
+            add_completed_step "extract_entities"
+            ;;
+        2)
+            local chapters_dir="$SCRIPT_DIR/$WORKS_ROOT/$work_name/chapters"
+            echo "Available chapters:"
+            ls -1 "$chapters_dir"/*.md 2>/dev/null | xargs -I {} basename {} .md | while read c; do
+                echo "  - $c"
+            done
+            local chapter=$(ask_text "Which chapter?")
+            print_info "Extracting entities from $chapter..."
+            "$SCRIPT_DIR/scripts/sofia-wiki" extract "$work_name" "$chapter" 2>/dev/null || echo "(Entity extraction not fully implemented yet)"
+            add_completed_step "extract_entities"
+            ;;
+        3) ;;
+    esac
+    
+    step_next_actions "$work_name"
+}
+
+step_start_editing() {
+    local work_name="$1"
+    
+    print_section "Start Editing"
+    
+    echo "Before editing, Sofia can create a snapshot of your work"
+    echo "so you can always return to this point."
+    echo ""
+    
+    local choice=$(ask_yes_no "Create a snapshot before editing?")
+    
+    if [ "$choice" = "yes" ]; then
+        print_info "Creating snapshot..."
+        "$SCRIPT_DIR/scripts/sofia-work" checkout "$work_name" 2>/dev/null || true
+        add_completed_step "checkout"
+    fi
+    
+    echo ""
+    echo "Your work is ready for editing!"
+    echo ""
+    echo "Files are in: $SCRIPT_DIR/$WORKS_ROOT/$work_name/chapters/"
+    echo ""
+    echo "Tips:"
+    echo "  - Edit chapters in your favorite editor"
+    echo "  - Run 'sofia-work watch $work_name' for auto-save"
+    echo "  - Run 'sofia-work checkin $work_name' when done"
+    echo ""
+    
+    add_completed_step "start_editing"
+    
+    local choice=$(ask_choice "What would you like to do?" \
+        "Enable auto-save (watch mode)" \
+        "See all options" \
+        "Exit tutorial")
+    
+    case "$choice" in
+        1)
+            print_info "Starting watch mode..."
+            echo "Press Ctrl+C to stop watching."
+            "$SCRIPT_DIR/scripts/sofia-work" watch "$work_name"
+            ;;
+        2) step_next_actions "$work_name" ;;
+        3) exit 0 ;;
+    esac
+}
+
+step_next_actions() {
+    local work_name="$1"
+    
+    print_section "Available Actions"
+    
+    echo "Here's what you can do with '$work_name':"
+    echo ""
+    
+    local choice=$(ask_choice "Choose an action:" \
+        "Review chapter structure" \
+        "Extract entities (characters, places)" \
+        "Start editing (with snapshot)" \
+        "Enable auto-save (watch mode)" \
+        "Version bump (checkin)" \
+        "Show work status" \
+        "Exit tutorial")
+    
+    case "$choice" in
+        1) step_review_structure "$work_name" ;;
+        2) step_extract_entities "$work_name" ;;
+        3) step_start_editing "$work_name" ;;
+        4) 
+            print_info "Starting watch mode..."
+            "$SCRIPT_DIR/scripts/sofia-work" watch "$work_name"
+            ;;
+        5)
+            print_info "Running checkin..."
+            "$SCRIPT_DIR/scripts/sofia-work" checkin "$work_name"
+            step_next_actions "$work_name"
+            ;;
+        6)
+            "$SCRIPT_DIR/scripts/sofia-work" status "$work_name"
+            step_next_actions "$work_name"
+            ;;
+        7) exit 0 ;;
+    esac
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+RESUME="false"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --resume|-r)
+            RESUME="true"
+            shift
+            ;;
+        --reset)
+            reset_state
+            echo "Tutorial state reset."
+            exit 0
+            ;;
+        --install-cleanup)
+            mkdir -p "$HOME/.sofia"
+            install_cleanup_script
+            exit 0
+            ;;
+        -h|--help)
+            echo "Usage: sofia-tutorial [options]"
+            echo ""
+            echo "Options:"
+            echo "  --resume, -r       Resume from last saved state"
+            echo "  --reset            Reset tutorial progress"
+            echo "  --install-cleanup  Install cleanup script to ~/.sofia/"
+            echo "  -h, --help         Show this help"
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+init_state
+init_tracking
+
+if [ "$RESUME" = "true" ]; then
+    current_work=$(get_state "current_work")
+    if [ -n "$current_work" ] && [ "$current_work" != "null" ]; then
+        # Remove quotes
+        current_work=$(echo "$current_work" | tr -d '"')
+        print_header
+        echo "Resuming tutorial with work: $current_work"
+        step_next_actions "$current_work"
+    else
+        step_welcome
+    fi
+else
+    step_welcome
+fi
