@@ -142,9 +142,15 @@ struct MenuBarView: View {
             
             Button("Open Dashboard") {
                 if let env = appState.activeEnvironment {
-                    let dashboardPath = (env.wikiPath as NSString).appendingPathComponent("index.md")
-                    appState.openInEditor(dashboardPath)
+                    appState.openInEditor(env.dashboardPath)
                 }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            
+            Button("Start Tutorial...") {
+                appState.startTutorial()
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
@@ -237,7 +243,9 @@ struct WorkRow: View {
     }
 }
 
-#Preview {
-    MenuBarView()
-        .environmentObject(AppState())
-}
+// NOTE: #Preview commented out for command-line swiftc compilation
+// (PreviewsMacros plugin not available outside Xcode)
+// #Preview {
+//     MenuBarView()
+//         .environmentObject(AppState())
+// }

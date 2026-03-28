@@ -134,20 +134,13 @@ struct PreferencesView: View {
                 
                 Divider()
                 
-                Toggle(isOn: Binding(
-                    get: { appState.tutorialMode },
-                    set: { appState.tutorialMode = $0 }
-                )) {
-                    VStack(alignment: .leading) {
-                        Text("Tutorial Mode")
-                        Text("Show guided prompts when processing content")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                if appState.tutorialMode {
-                    Button("Start Tutorial") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tutorial")
+                        .font(.subheadline)
+                    Text("Learn Sofia with an interactive walkthrough")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Button("Start Tutorial...") {
                         appState.startTutorial()
                     }
                     .buttonStyle(.borderedProminent)
@@ -309,7 +302,9 @@ struct AddEnvironmentSheet: View {
     }
 }
 
-#Preview {
-    PreferencesView()
-        .environmentObject(AppState())
-}
+// NOTE: #Preview commented out for command-line swiftc compilation
+// (PreviewsMacros plugin not available outside Xcode)
+// #Preview {
+//     PreferencesView()
+//         .environmentObject(AppState())
+// }

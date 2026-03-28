@@ -14,8 +14,8 @@ struct Environment: Identifiable, Codable, Equatable {
         return (corpusPath as NSString).appendingPathComponent("works")
     }
     
-    var wikiPath: String {
-        return (corpusPath as NSString).appendingPathComponent("wiki")
+    var dashboardPath: String {
+        return (corpusPath as NSString).appendingPathComponent("index.md")
     }
 }
 

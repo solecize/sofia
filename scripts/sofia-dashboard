@@ -1,0 +1,208 @@
+#!/bin/bash
+# sofia-dashboard: Generate author dashboard at corpus/index.md
+# Usage: sofia-dashboard [--json]
+#
+# Aggregates stats from all works and generates a markdown dashboard.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WORKS_DIR="$SCRIPT_DIR/corpus/works"
+OUTPUT_FILE="$SCRIPT_DIR/corpus/index.md"
+JSON_OUTPUT="false"
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --json)
+            JSON_OUTPUT="true"
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: sofia-dashboard [options]"
+            echo ""
+            echo "Generate author dashboard at corpus/index.md"
+            echo ""
+            echo "Options:"
+            echo "  --json    Output JSON instead of writing file"
+            echo "  -h, --help    Show this help"
+            exit 0
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Get word count for a work
+get_word_count() {
+    local work_dir="$1"
+    local chapters_dir="$work_dir/chapters"
+    if [ -d "$chapters_dir" ]; then
+        find "$chapters_dir" -name "*.md" -exec cat {} + 2>/dev/null | wc -w | tr -d ' '
+    else
+        echo "0"
+    fi
+}
+
+# Get chapter count for a work
+get_chapter_count() {
+    local work_dir="$1"
+    local chapters_dir="$work_dir/chapters"
+    if [ -d "$chapters_dir" ]; then
+        find "$chapters_dir" -name "*.md" 2>/dev/null | wc -l | tr -d ' '
+    else
+        echo "0"
+    fi
+}
+
+# Get phase from profile
+get_phase() {
+    local work_dir="$1"
+    local profile="$work_dir/.sofia/profile.md"
+    if [ -f "$profile" ]; then
+        grep -o 'current_phase *= *"[^"]*"' "$profile" 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
+
+# Get last edit time (human readable)
+get_last_edit() {
+    local work_dir="$1"
+    local newest=$(find "$work_dir" -name "*.md" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f1)
+    if [ -n "$newest" ]; then
+        local now=$(date +%s)
+        local diff=$((now - newest))
+        if [ $diff -lt 60 ]; then
+            echo "${diff}s ago"
+        elif [ $diff -lt 3600 ]; then
+            echo "$((diff / 60))m ago"
+        elif [ $diff -lt 86400 ]; then
+            echo "$((diff / 3600))h ago"
+        else
+            echo "$((diff / 86400))d ago"
+        fi
+    else
+        echo "unknown"
+    fi
+}
+
+# Get 3 most recently modified files
+get_recent_files() {
+    local work_dir="$1"
+    local work_dir_clean="${work_dir%/}"
+    find "$work_dir" -name "*.md" -type f -exec stat -f "%m %N" {} \; 2>/dev/null | \
+        sort -rn | head -3 | while read mtime filepath; do
+            # Make path relative to work dir
+            echo "$filepath" | sed "s|^$work_dir_clean/||"
+        done
+}
+
+# Generate dashboard
+generate_dashboard() {
+    local timestamp=$(date "+%Y-%m-%d %H:%M")
+    
+    echo "# Author Dashboard"
+    echo ""
+    echo "*Generated: $timestamp*"
+    echo ""
+    echo "## Works"
+    echo ""
+    echo "| Work | Words | Chapters | Phase | Last Edit |"
+    echo "|------|-------|----------|-------|-----------|"
+    
+    # Iterate through works
+    for work_dir in "$WORKS_DIR"/*/; do
+        [ -d "$work_dir" ] || continue
+        local work_name=$(basename "$work_dir")
+        
+        # Skip template-work
+        [ "$work_name" = "template-work" ] && continue
+        
+        local words=$(get_word_count "$work_dir")
+        local chapters=$(get_chapter_count "$work_dir")
+        local phase=$(get_phase "$work_dir")
+        local last_edit=$(get_last_edit "$work_dir")
+        
+        # Format word count with commas
+        local words_formatted=$(printf "%'d" "$words" 2>/dev/null || echo "$words")
+        
+        # Link to notebook if exists, otherwise to work dir
+        local notebook="$work_dir/notes/notebook.md"
+        if [ -f "$notebook" ]; then
+            echo "| [$work_name](works/$work_name/notes/notebook.md) | $words_formatted | $chapters | $phase | $last_edit |"
+        else
+            echo "| [$work_name](works/$work_name/) | $words_formatted | $chapters | $phase | $last_edit |"
+        fi
+    done
+    
+    echo ""
+    echo "## Recent Activity"
+    echo ""
+    
+    # Recent activity per work
+    for work_dir in "$WORKS_DIR"/*/; do
+        [ -d "$work_dir" ] || continue
+        local work_name=$(basename "$work_dir")
+        [ "$work_name" = "template-work" ] && continue
+        
+        local last_edit=$(get_last_edit "$work_dir")
+        echo "**$work_name** ($last_edit)"
+        
+        get_recent_files "$work_dir" | while read filepath; do
+            [ -n "$filepath" ] && echo "- \`$filepath\`"
+        done
+        echo ""
+    done
+    
+    echo "## Quick Links"
+    echo ""
+    echo "- [Incoming Notes](incoming/) — Raw notes waiting to be processed"
+    echo ""
+    echo "---"
+    echo ""
+    echo "*Refresh with: \`sofia-dashboard\`*"
+}
+
+# Generate JSON output
+generate_json() {
+    echo "{"
+    echo '  "generated": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'",'
+    echo '  "works": ['
+    
+    local first=true
+    for work_dir in "$WORKS_DIR"/*/; do
+        [ -d "$work_dir" ] || continue
+        local work_name=$(basename "$work_dir")
+        [ "$work_name" = "template-work" ] && continue
+        
+        local words=$(get_word_count "$work_dir")
+        local chapters=$(get_chapter_count "$work_dir")
+        local phase=$(get_phase "$work_dir")
+        local last_edit=$(get_last_edit "$work_dir")
+        
+        [ "$first" = "true" ] || echo ","
+        first=false
+        
+        echo '    {'
+        echo "      \"name\": \"$work_name\","
+        echo "      \"words\": $words,"
+        echo "      \"chapters\": $chapters,"
+        echo "      \"phase\": \"$phase\","
+        echo "      \"lastEdit\": \"$last_edit\""
+        echo -n '    }'
+    done
+    
+    echo ""
+    echo "  ]"
+    echo "}"
+}
+
+# Main
+if [ "$JSON_OUTPUT" = "true" ]; then
+    generate_json
+else
+    generate_dashboard > "$OUTPUT_FILE"
+    echo "Dashboard generated: $OUTPUT_FILE"
+fi
