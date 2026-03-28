@@ -18,22 +18,22 @@ While Notator organizes notes, Sofia Work manages **manuscripts**—the canonica
 
 ```bash
 # Initialize a new manuscript
-sofia-work init prince-of-loves
+sofia-work init origin-of-species
 
 # Import content
-sofia-work ingest prince-of-loves manuscript.md
+sofia-work ingest origin-of-species manuscript.md
 
 # Check status
-sofia-work status prince-of-loves
+sofia-work status origin-of-species
 
 # Edit with auto-save protection
-sofia-work checkout prince-of-loves
-sofia-work watch prince-of-loves      # Start auto-commit daemon
+sofia-work checkout origin-of-species
+sofia-work watch origin-of-species      # Start auto-commit daemon
 
 # ... edit in Typora or any editor ...
 
-sofia-work watch prince-of-loves --stop
-sofia-work checkin prince-of-loves    # Version bump
+sofia-work watch origin-of-species --stop
+sofia-work checkin origin-of-species    # Version bump
 ```
 
 ---
@@ -45,12 +45,12 @@ sofia-work checkin prince-of-loves    # Version bump
 Create a new manuscript structure:
 
 ```bash
-sofia-work init prince-of-loves
+sofia-work init origin-of-species
 ```
 
 Creates:
 ```
-notes/works/prince-of-loves/
+notes/works/origin-of-species/
 ├── manuscript.md          # Table of contents
 ├── chapters/              # Chapter files
 ├── orphans.md             # Unplaced prose
@@ -64,9 +64,9 @@ notes/works/prince-of-loves/
 Import content from various sources:
 
 ```bash
-sofia-work ingest prince-of-loves manuscript.md
-sofia-work ingest prince-of-loves chatgpt-export.html
-sofia-work ingest prince-of-loves notes-folder/
+sofia-work ingest origin-of-species manuscript.md
+sofia-work ingest origin-of-species chatgpt-export.html
+sofia-work ingest origin-of-species notes-folder/
 ```
 
 **Supported formats:**
@@ -86,12 +86,12 @@ Show manuscript state:
 
 ```bash
 sofia-work status                    # List all works
-sofia-work status prince-of-loves    # Show specific work
+sofia-work status origin-of-species    # Show specific work
 ```
 
 Output:
 ```
-Work: prince-of-loves
+Work: origin-of-species
 Version: 0.1.1
 Modified: 2026-03-15T17:39:15Z
 Status: Ready
@@ -99,7 +99,7 @@ Status: Ready
 Chapters: 12
 
 Chapter List:
-  01-synth-pop-sunday (95 lines)
+  01-variation-under-domestication (95 lines)
   02-thief-delivers-a-song-of-simon (9 lines)
   ...
 ```
@@ -109,7 +109,7 @@ Chapter List:
 Regenerate the table of contents in `manuscript.md`:
 
 ```bash
-sofia-work toc prince-of-loves
+sofia-work toc origin-of-species
 ```
 
 ### `checkout <project>`
@@ -117,7 +117,7 @@ sofia-work toc prince-of-loves
 Create a snapshot before editing:
 
 ```bash
-sofia-work checkout prince-of-loves
+sofia-work checkout origin-of-species
 ```
 
 - Creates timestamped snapshot in `versions/`
@@ -129,7 +129,7 @@ sofia-work checkout prince-of-loves
 Complete editing session:
 
 ```bash
-sofia-work checkin prince-of-loves
+sofia-work checkin origin-of-species
 ```
 
 - Bumps version (0.1.1 → 0.1.2)
@@ -142,8 +142,8 @@ sofia-work checkin prince-of-loves
 Find and place prose from notes:
 
 ```bash
-sofia-work surface prince-of-loves
-sofia-work surface prince-of-loves --json  # LLM-assisted placement
+sofia-work surface origin-of-species
+sofia-work surface origin-of-species --json  # LLM-assisted placement
 ```
 
 **Process:**
@@ -162,15 +162,15 @@ sofia-work surface prince-of-loves --json  # LLM-assisted placement
 File-watching daemon for auto-commits:
 
 ```bash
-sofia-work watch prince-of-loves          # Start daemon
-sofia-work watch prince-of-loves --status # Check if running
-sofia-work watch prince-of-loves --stop   # Stop daemon
+sofia-work watch origin-of-species          # Start daemon
+sofia-work watch origin-of-species --status # Check if running
+sofia-work watch origin-of-species --stop   # Stop daemon
 ```
 
 **Behavior:**
 - Monitors `chapters/*.md`, `orphans.md`, `manuscript.md`
 - Auto-commits on save with 2-second debounce
-- Commit format: `auto: prince-of-loves 01-synth-pop-sunday.md @ 14:05:04`
+- Commit format: `auto: origin-of-species 01-variation-under-domestication.md @ 14:05:04`
 - Logs to `.sofia/watch.log`
 
 **Requirements:** `fswatch` (`brew install fswatch`)
@@ -222,7 +222,7 @@ notes/
 
 ```json
 {
-  "project": "prince-of-loves",
+  "project": "origin-of-species",
   "version": "0.1.2",
   "created": "2026-03-15T17:38:29Z",
   "modified": "2026-03-15T18:45:00Z",
@@ -240,29 +240,29 @@ notes/
 
 ```bash
 # Create manuscript
-sofia-work init prince-of-loves
+sofia-work init origin-of-species
 
 # Import existing content
-sofia-work ingest prince-of-loves ~/Documents/manuscript.md
+sofia-work ingest origin-of-species ~/Documents/manuscript.md
 
 # Split into chapters (if needed)
 python3 scripts/split-manuscript.py
-sofia-work toc prince-of-loves
+sofia-work toc origin-of-species
 ```
 
 ### Daily Writing (with Typora)
 
 ```bash
 # Start session
-sofia-work checkout prince-of-loves
-sofia-work watch prince-of-loves
+sofia-work checkout origin-of-species
+sofia-work watch origin-of-species
 
 # Open in Typora, enable autosave
 # Every save → git micro-commit
 
 # End session
-sofia-work watch prince-of-loves --stop
-sofia-work checkin prince-of-loves
+sofia-work watch origin-of-species --stop
+sofia-work checkin origin-of-species
 ```
 
 ### Surfacing Notes
@@ -272,10 +272,10 @@ sofia-work checkin prince-of-loves
 echo "chapter: 01-opening" >> notes/incoming/new-scene.md
 
 # Surface into manuscript
-sofia-work surface prince-of-loves
+sofia-work surface origin-of-species
 
 # Or use LLM assistance
-sofia-work surface prince-of-loves --json
+sofia-work surface origin-of-species --json
 ```
 
 ---
@@ -286,10 +286,10 @@ Sofia Work syncs with `sofia-wiki` for entity extraction:
 
 ```bash
 # After ingest, extract entities from chapters
-sofia-wiki extract prince-of-loves 01-synth-pop-sunday
+sofia-wiki extract origin-of-species 01-variation-under-domestication
 
 # Or batch process
-sofia-wiki loop prince-of-loves --json
+sofia-wiki loop origin-of-species --json
 ```
 
 The wiki provides:
