@@ -294,7 +294,8 @@ count_works() {
     local count=0
     if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
         for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
-            [ -d "$dir" ] && [ "$(basename "$dir")" != "template-work" ] && ((count++))
+            local name=$(basename "$dir")
+            [ -d "$dir" ] && [[ "$name" != .* ]] && [[ "$name" != template-* ]] && ((count++))
         done
     fi
     echo "$count"
@@ -316,7 +317,7 @@ list_works() {
     if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
         for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
             local name=$(basename "$dir")
-            [ "$name" != "template-work" ] && [ -d "$dir" ] && echo "$name"
+            [ -d "$dir" ] && [[ "$name" != .* ]] && [[ "$name" != template-* ]] && echo "$name"
         done
     fi
 }

@@ -246,75 +246,87 @@ print(data.get('$field', ''))
 
 cmd_init() {
     local project="$1"
+    local template="${2:-default}"
     
     if [ -z "$project" ]; then
         echo "Error: Project name required"
-        echo "Usage: sofia-work init <project>"
+        echo "Usage: sofia-work init <project> [--template <name>]"
         exit 1
     fi
     
     local work_dir="$(get_work_dir "$project")"
-    local chapters_dir="$(get_chapters_dir "$project")"
-    local sofia_dir="$(get_sofia_dir "$project")"
-    local versions_dir="$(get_versions_dir "$project")"
-    local manuscript="$(get_manuscript "$project")"
-    local orphans="$(get_orphans "$project")"
+    local template_dir="$SCRIPT_DIR/templates/default"
+    local genre_template_dir="$SCRIPT_DIR/templates/$template"
     
     if [ -d "$work_dir" ]; then
         echo "Error: Work already exists: $project"
         exit 1
     fi
     
-    echo "Creating manuscript structure for: $project"
+    if [ ! -d "$template_dir" ]; then
+        echo "Error: Default template not found at: templates/default/"
+        exit 1
+    fi
     
-    # Create directories
-    mkdir -p "$chapters_dir"
-    mkdir -p "$sofia_dir"
-    mkdir -p "$versions_dir"
+    if [ "$template" != "default" ] && [ ! -d "$genre_template_dir" ]; then
+        echo "Error: Template not found: $template"
+        echo "Available templates: default, fiction, non-fiction"
+        exit 1
+    fi
+    
+    echo "Creating manuscript structure for: $project"
+    [ "$template" != "default" ] && echo "Using template: $template"
+    
+    # Copy default template structure
+    cp -R "$template_dir" "$work_dir"
+    
+    # Remove .gitkeep files
+    find "$work_dir" -name ".gitkeep" -delete 2>/dev/null || true
+    
+    # Create versions directory
+    mkdir -p "$work_dir/versions"
     
     # Create work.json
     create_work_json "$project"
     
-    # Create manuscript.md (TOC)
-    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
-    cat > "$manuscript" << EOF
-# $title
-
-## Table of Contents
-
-*No chapters yet. Use \`sofia-work ingest\` to import content.*
-
----
-
-**Version:** 0.1.0  
-**Status:** Draft  
-**Last Updated:** $(date +"%Y-%m-%d")
-EOF
-    
-    # Create orphans.md
-    cat > "$orphans" << EOF
-# Orphaned Content
-
-Prose and notes that haven't been placed in a chapter yet.
-
----
-
-*No orphans yet.*
-EOF
-    
     # Create placements.json
-    echo "[]" > "$sofia_dir/placements.json"
+    echo "[]" > "$work_dir/.sofia/placements.json"
+    
+    # Replace template placeholders in manuscript.md
+    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+    local today=$(date +"%Y-%m-%d")
+    sed -i '' "s/{{PROJECT_TITLE}}/$title/g" "$work_dir/manuscript.md" 2>/dev/null || true
+    sed -i '' "s/{{DATE}}/$today/g" "$work_dir/manuscript.md" 2>/dev/null || true
+    
+    # If using a genre template, overlay its files (including hidden dirs like .sofia)
+    if [ "$template" != "default" ] && [ -d "$genre_template_dir" ]; then
+        # Copy genre template's .sofia/profile.md over default
+        if [ -f "$genre_template_dir/.sofia/profile.md" ]; then
+            cp "$genre_template_dir/.sofia/profile.md" "$work_dir/.sofia/profile.md"
+        fi
+        # Copy any other files from genre template
+        for item in "$genre_template_dir"/*; do
+            [ -e "$item" ] && cp -R "$item" "$work_dir/" 2>/dev/null || true
+        done
+    fi
+    
+    # Update profile timestamps (after genre overlay so we update the correct profile)
+    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    sed -i '' "s/created = \"\"/created = \"$now\"/g" "$work_dir/.sofia/profile.md" 2>/dev/null || true
+    sed -i '' "s/modified = \"\"/modified = \"$now\"/g" "$work_dir/.sofia/profile.md" 2>/dev/null || true
     
     echo "✓ Created work structure at: $WORKS_ROOT/$project/"
     echo "  - manuscript.md (table of contents)"
     echo "  - chapters/ (chapter files)"
+    echo "  - notes/notebook.md (working hub)"
+    echo "  - reference/ (wiki-style reference)"
     echo "  - orphans.md (unplaced content)"
-    echo "  - .sofia/ (metadata)"
+    echo "  - .sofia/ (metadata and profile)"
     echo "  - versions/ (milestone snapshots)"
     
     if [ "$JSON_OUTPUT" = "true" ]; then
         emit_status_json "Created manuscript structure for $project" \
-            "{\"project\": \"$project\", \"path\": \"$WORKS_ROOT/$project\"}" \
+            "{\"project\": \"$project\", \"path\": \"$WORKS_ROOT/$project\", \"template\": \"$template\"}" \
             "sofia-work status $project"
     fi
 }
@@ -1337,6 +1349,7 @@ cmd_demo() {
 COMMAND=""
 PROJECT=""
 ARG2=""
+TEMPLATE="default"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1355,6 +1368,10 @@ while [ $# -gt 0 ]; do
         --tutorial)
             TUTORIAL_MODE="true"
             shift
+            ;;
+        --template)
+            TEMPLATE="$2"
+            shift 2
             ;;
         -h|--help)
             show_usage
@@ -1384,7 +1401,7 @@ fi
 
 case "$COMMAND" in
     init)
-        cmd_init "$PROJECT"
+        cmd_init "$PROJECT" "$TEMPLATE"
         ;;
     status)
         cmd_status "$PROJECT"
