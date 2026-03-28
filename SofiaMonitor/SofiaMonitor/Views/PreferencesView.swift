@@ -13,6 +13,35 @@ struct PreferencesView: View {
                 Text("Environments")
                     .font(.headline)
                 
+                // Lock toggle
+                Toggle(isOn: Binding(
+                    get: { appState.isLocked },
+                    set: { _ in appState.toggleLock() }
+                )) {
+                    HStack {
+                        Image(systemName: appState.isLocked ? "lock.fill" : "lock.open")
+                            .foregroundColor(appState.isLocked ? .orange : .secondary)
+                        VStack(alignment: .leading) {
+                            Text("Lock to this repository")
+                            Text("Prevents adding or switching environments")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .disabled(appState.activeEnvironment == nil)
+                
+                if appState.isLocked {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("Environment is locked. Unlock to make changes.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
                 List {
                     ForEach(appState.environments) { env in
                         HStack {
@@ -38,6 +67,7 @@ struct PreferencesView: View {
                             Button("Remove", role: .destructive) {
                                 removeEnvironment(env)
                             }
+                            .disabled(appState.isLocked)
                         }
                     }
                 }
@@ -47,12 +77,14 @@ struct PreferencesView: View {
                     Button("Add Environment...") {
                         showingAddSheet = true
                     }
+                    .disabled(appState.isLocked)
                     
                     Spacer()
                     
                     Button("Scan for Environments") {
                         scanForEnvironments()
                     }
+                    .disabled(appState.isLocked)
                 }
             }
             .padding()
