@@ -21,29 +21,50 @@ struct MenuBarView: View {
             Divider()
             
             // Environments section
-            Text("Environments")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-            
-            ForEach(appState.environments) { env in
-                EnvironmentRow(
-                    environment: env,
-                    isActive: env.id == appState.activeEnvironment?.id
-                )
-                .onTapGesture {
-                    appState.switchEnvironment(to: env)
-                    refreshWorks()
-                }
-            }
-            
-            if appState.environments.isEmpty {
-                Text("No environments configured")
+            HStack {
+                Text("Environment")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
+                if appState.isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            
+            if appState.isLocked {
+                // When locked, only show active environment
+                if let env = appState.activeEnvironment {
+                    EnvironmentRow(
+                        environment: env,
+                        isActive: true,
+                        isLocked: true
+                    )
+                }
+            } else {
+                // When unlocked, show all environments
+                ForEach(appState.environments) { env in
+                    EnvironmentRow(
+                        environment: env,
+                        isActive: env.id == appState.activeEnvironment?.id,
+                        isLocked: false
+                    )
+                    .onTapGesture {
+                        appState.switchEnvironment(to: env)
+                        refreshWorks()
+                    }
+                }
+                
+                if appState.environments.isEmpty {
+                    Text("No environments configured")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 4)
+                }
             }
             
             Divider()
@@ -163,6 +184,7 @@ struct MenuBarView: View {
 struct EnvironmentRow: View {
     let environment: Environment
     let isActive: Bool
+    var isLocked: Bool = false
     
     var body: some View {
         HStack {
@@ -172,8 +194,15 @@ struct EnvironmentRow: View {
             
             Text(environment.name)
             
-            if isActive {
-                Text("(last used)")
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                Text("(locked)")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            } else if isActive {
+                Text("(active)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

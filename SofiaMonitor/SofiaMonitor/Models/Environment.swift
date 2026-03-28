@@ -22,4 +22,6 @@ struct Environment: Identifiable, Codable, Equatable {
 struct EnvironmentConfig: Codable {
     var environments: [Environment]
     var defaultEditor: String
+    var isLocked: Bool = false
+    var lockedEnvironmentId: UUID? = nil
 }

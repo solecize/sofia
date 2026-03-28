@@ -27,6 +27,7 @@ class AppState: ObservableObject {
     @Published var activeEnvironment: Environment?
     @Published var pendingChanges: Int = 0
     @Published var isWatching: Bool = false
+    @Published var isLocked: Bool = false
     
     private var fileWatcher: FileWatcher?
     private var gitService: GitService?
@@ -70,9 +71,14 @@ class AppState: ObservableObject {
             let data = try Data(contentsOf: url)
             let config = try JSONDecoder().decode(EnvironmentConfig.self, from: data)
             self.environments = config.environments
+            self.isLocked = config.isLocked
             
-            // Set active to most recently used
-            self.activeEnvironment = environments.max(by: { $0.lastUsed < $1.lastUsed })
+            // If locked, set active to locked environment; otherwise most recently used
+            if isLocked, let lockedId = config.lockedEnvironmentId {
+                self.activeEnvironment = environments.first(where: { $0.id == lockedId })
+            } else {
+                self.activeEnvironment = environments.max(by: { $0.lastUsed < $1.lastUsed })
+            }
         } catch {
             print("Error loading environments: \(error)")
         }
@@ -111,7 +117,12 @@ class AppState: ObservableObject {
         
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let config = EnvironmentConfig(environments: environments, defaultEditor: "windsurf")
+            let config = EnvironmentConfig(
+                environments: environments,
+                defaultEditor: "windsurf",
+                isLocked: isLocked,
+                lockedEnvironmentId: isLocked ? activeEnvironment?.id : nil
+            )
             let data = try JSONEncoder().encode(config)
             try data.write(to: dir.appendingPathComponent("environments.json"))
         } catch {
@@ -120,6 +131,7 @@ class AppState: ObservableObject {
     }
     
     func switchEnvironment(to env: Environment) {
+        guard !isLocked else { return }  // Prevent switching when locked
         activeEnvironment = env
         
         // Update last used
@@ -127,6 +139,11 @@ class AppState: ObservableObject {
             environments[index].lastUsed = Date()
             saveEnvironments()
         }
+    }
+    
+    func toggleLock() {
+        isLocked.toggle()
+        saveEnvironments()
     }
     
     func openInEditor(_ path: String? = nil) {
