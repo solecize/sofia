@@ -20,9 +20,11 @@ MX documentation prevents these issues by providing clear, unambiguous guidance 
 
 | Document | Purpose |
 |----------|---------|
+| [terminology.md](terminology.md) | Definitions for corpus, works, notes, reference |
 | [safety.md](safety.md) | STOP, NEVER, and VERIFY rules |
 | [repository-scope.md](repository-scope.md) | What is and isn't part of this repository |
 | [commit-protocol.md](commit-protocol.md) | Step-by-step process for git operations |
+| [cli.md](cli.md) | Sofia MX CLI commands |
 
 ## Your Role as an AI Assistant
 

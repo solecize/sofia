@@ -49,10 +49,21 @@ Do not improvise raw commands. Use Sofia's tools:
 | Directory | Contents |
 |-----------|----------|
 | `corpus/works/` | User's writing projects |
-| `notes/` | User's notes and incoming content |
+| `corpus/incoming/` | Raw imports to be processed |
 | `library/` | Prompt library |
 | `config/` | User configuration |
 | `sessions/` | Generated prompts and manifests |
+
+### Inside Each Work
+
+| Path | Contents |
+|------|----------|
+| `chapters/` | Chapter files |
+| `notes/notebook.md` | Working hub |
+| `notes/<chapter>-notes.md` | Chapter summaries |
+| `reference/` | Characters, places, objects, events |
+| `manuscript.md` | Table of contents |
+| `orphans.md` | Unplaced prose |
 
 ## Full Documentation
 

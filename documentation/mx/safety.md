@@ -67,3 +67,30 @@ Before any destructive or significant action, verify:
 2. Explain what you're uncertain about
 3. Wait for clarification
 4. Do not guess or assume
+
+## Escape Routes — Getting Back on Task
+
+If you find yourself doing any of the following, STOP and return to using Sofia CLI tools:
+
+| If you're doing this... | Return to this... |
+|------------------------|-------------------|
+| Writing raw shell commands to move files | `sofia-work surface` or `sofia notator -process` |
+| Manually editing multiple chapter files | `sofia-work checkin` after changes |
+| Searching through files with grep/find | `sofia-wiki entities` or `sofia-wiki status` |
+| Creating new directory structures | `sofia-work init` for new projects |
+| Writing git commands directly | `sofia-work watch` for auto-commit |
+| Improvising file organization | `sofia notator -process -preview` |
+
+### Signs You've Drifted
+
+- You're writing code instead of organizing writing
+- You're creating new tools instead of using existing ones
+- You're making decisions without asking the user
+- You've forgotten to use `sofia-work` or `sofia-wiki`
+
+### How to Return
+
+1. Stop what you're doing
+2. Run `sofia mx state` to review your purpose
+3. Ask the user: "I was about to [action]. Should I use [Sofia tool] instead?"
+4. Wait for guidance
