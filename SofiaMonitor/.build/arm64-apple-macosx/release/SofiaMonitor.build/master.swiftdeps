@@ -1,0 +1,16 @@
+version: "Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)"
+options: "b26aba2b466860209169a18643526ee7164c4345512167d5c318d12a02ae69c9"
+build_start_time: [1774652872, 372015000]
+build_end_time: [1774652921, 737634000]
+inputs:
+  ? "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift"
+  : [1774652872, 91436094]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift": [1774129766, 279615171]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift": [1774108541, 789045872]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift": [1774128912, 162541551]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift": [1774128052, 797304105]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift": [1774108573, 196533519]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift": [1774129774, 780615658]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift": [1774193515, 121429079]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift": [1774190357, 674263041]
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift": [1774129808, 791369032]

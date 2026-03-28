@@ -1,0 +1,392 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+    "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor_SofiaMonitor.bundle/sofia.icns" : {
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/sofia.icns"
+        }
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor_SofiaMonitor.bundle/sofia.icns"
+        }
+      ]
+    }
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.SofiaMonitor-arm64-apple-macosx15.0-release.module" : {
+      "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "fileList" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources",
+      "importPath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<SofiaMonitor-arm64-apple-macosx15.0-release.module-resources>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "SofiaMonitor",
+      "moduleOutputPath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules/SofiaMonitor.swiftmodule",
+      "objects" : [
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx13.0",
+        "-O",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-module-cache-path",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "SofiaMonitor_main",
+        "-color-diagnostics",
+        "-swift-version",
+        "5",
+        "-F",
+        "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+        "-sdk",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "sofiamonitor"
+      ],
+      "outputFileMapPath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules/SofiaMonitor.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift",
+        "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift"
+      ],
+      "tempsPath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build",
+      "wholeModuleOptimization" : true
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "SofiaMonitor" : [
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc",
+      "-module-name",
+      "SofiaMonitor",
+      "-package-name",
+      "sofiamonitor",
+      "-whole-module-optimization",
+      "-num-threads",
+      "10",
+      "-c",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift",
+      "-I",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx13.0",
+      "-O",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-module-cache-path",
+      "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "SofiaMonitor_main",
+      "-color-diagnostics",
+      "-swift-version",
+      "5",
+      "-F",
+      "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+      "-sdk",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "sofiamonitor",
+      "-driver-use-frontend-path",
+      "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "SofiaMonitor" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "enableAllTraits" : false
+  },
+  "writeCommands" : {
+    "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources"
+    },
+    "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList"
+    },
+    "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Library/Developer/CommandLineTools/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+    }
+  }
+}

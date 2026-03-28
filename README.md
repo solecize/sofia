@@ -188,10 +188,10 @@ Organize notes without adding prose. Moves files, applies naming conventions, tr
 Manage manuscripts with chapter organization, versioning, and wiki sync.
 
 ```bash
-sofia-work init prince-of-loves
-sofia-work ingest prince-of-loves manuscript.md
-sofia-work watch prince-of-loves    # Auto-commit on save
-sofia-work checkin prince-of-loves  # Version bump
+sofia-work init origin-of-species
+sofia-work ingest origin-of-species manuscript.md
+sofia-work watch origin-of-species    # Auto-commit on save
+sofia-work checkin origin-of-species  # Version bump
 ```
 
 ### Sofia Wiki

@@ -1,0 +1,77 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "SofiaMonitor-arm64-apple-macosx15.0-release.exe": ["<SofiaMonitor-arm64-apple-macosx15.0-release.exe>"]
+  "SofiaMonitor-arm64-apple-macosx15.0-release.module": ["<SofiaMonitor-arm64-apple-macosx15.0-release.module>"]
+  "main": ["<SofiaMonitor-arm64-apple-macosx15.0-release.exe>","<SofiaMonitor-arm64-apple-macosx15.0-release.module>"]
+  "test": ["<SofiaMonitor-arm64-apple-macosx15.0-release.exe>","<SofiaMonitor-arm64-apple-macosx15.0-release.module>"]
+default: "main"
+nodes:
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources"]
+    description: "Write auxiliary file /Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources"
+
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList"
+
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor_SofiaMonitor.bundle/sofia.icns":
+    tool: copy-tool
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/sofia.icns"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor_SofiaMonitor.bundle/sofia.icns"]
+    description: "Copying /Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/sofia.icns"
+
+  "/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Library/Developer/CommandLineTools/usr/bin/swiftc"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt"
+
+  "<SofiaMonitor-arm64-apple-macosx15.0-release.exe>":
+    tool: phony
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor"]
+    outputs: ["<SofiaMonitor-arm64-apple-macosx15.0-release.exe>"]
+
+  "<SofiaMonitor-arm64-apple-macosx15.0-release.module>":
+    tool: phony
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules/SofiaMonitor.swiftmodule"]
+    outputs: ["<SofiaMonitor-arm64-apple-macosx15.0-release.module>"]
+
+  "C.SofiaMonitor-arm64-apple-macosx15.0-release.exe":
+    tool: shell
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor"]
+    description: "Linking ./.build/arm64-apple-macosx/release/SofiaMonitor"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-L","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release","-o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor","-module-name","SofiaMonitor","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_SofiaMonitor_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.product/Objects.LinkFileList","-target","arm64-apple-macosx13.0","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xlinker","-rpath","-Xlinker","/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
+
+  "C.SofiaMonitor-arm64-apple-macosx15.0-release.module":
+    tool: shell
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Environment.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Models/Work.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Resources/MenuBarIcon.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/FileWatcher.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/GitService.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Services/StatsService.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/SofiaMonitorApp.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/MenuBarView.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/Views/PreferencesView.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/DerivedSources/resource_bundle_accessor.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/swift-version--1AB21518FC5DEDBE.txt","<SofiaMonitor-arm64-apple-macosx15.0-release.module-resources>","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources"]
+    outputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Environment.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/Work.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarIcon.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/FileWatcher.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/GitService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/StatsService.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/SofiaMonitorApp.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/MenuBarView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/PreferencesView.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/resource_bundle_accessor.swift.o","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules/SofiaMonitor.swiftmodule"]
+    description: "Compiling Swift Module 'SofiaMonitor' (10 sources)"
+    args: ["/Library/Developer/CommandLineTools/usr/bin/swiftc","-module-name","SofiaMonitor","-emit-dependencies","-emit-module","-emit-module-path","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules/SofiaMonitor.swiftmodule","-output-file-map","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/output-file-map.json","-whole-module-optimization","-num-threads","10","-c","@/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor.build/sources","-I","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-O","-j10","-DSWIFT_PACKAGE","-module-cache-path","/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","SofiaMonitor_main","-color-diagnostics","-swift-version","5","-F","/Library/Developer/CommandLineTools/Library/Developer/Frameworks","-sdk","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-g","-Xcc","-isysroot","-Xcc","/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk","-Xcc","-fPIC","-Xcc","-g","-package-name","sofiamonitor"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/SofiaMonitor/","/Users/jdfrey/Documents/sofia/SofiaMonitor/Package.swift","/Users/jdfrey/Documents/sofia/SofiaMonitor/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+
+  "SofiaMonitor-arm64-apple-macosx15.0-release.module-resources":
+    tool: phony
+    inputs: ["/Users/jdfrey/Documents/sofia/SofiaMonitor/.build/arm64-apple-macosx/release/SofiaMonitor_SofiaMonitor.bundle/sofia.icns"]
+    outputs: ["<SofiaMonitor-arm64-apple-macosx15.0-release.module-resources>"]
+
