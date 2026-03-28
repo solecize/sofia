@@ -5,15 +5,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WORKS_ROOT="notes/works"
-WIKI_ROOT="notes/wiki"
-CANON_ROOT="notes/canon"
-INCOMING_ROOT="notes/incoming"
+WORKS_ROOT="corpus/works"
+INCOMING_ROOT="corpus/incoming"
+DEMO_HIDDEN_FILE="$HOME/.sofia/demo-hidden"
 
 # Global flags
 JSON_OUTPUT="false"
 DRY_RUN="false"
 NO_COMMIT="false"
+TUTORIAL_MODE="false"
 
 # ============================================================================
 # JSON Output Helpers (shared with sofia-wiki)
@@ -93,18 +93,29 @@ show_usage() {
     echo "  toc <project>                   Regenerate table of contents"
     echo "  watch <project> [--stop|--status]  Auto-commit on file changes"
     echo ""
+    echo "Demo Management:"
+    echo "  demo list                       List demo works"
+    echo "  demo hide                       Hide demos from dashboard"
+    echo "  demo show                       Show demos in dashboard"
+    echo "  demo remove                     Remove all demo works (keeps user works)"
+    echo ""
     echo "Options:"
     echo "  --json                          Output JSON instruction blocks"
     echo "  --dry-run                       Show what would be done without doing it"
     echo "  --no-commit                     Skip git commits"
+    echo "  --tutorial                      Enable tutorial mode (guided prompts)"
+    echo ""
+    echo "Tutorial:"
+    echo "  tutorial                        Start interactive tutorial"
     echo ""
     echo "Directory Structure:"
-    echo "  notes/works/<project>/"
-    echo "  ├── manuscript.md               Table of contents with chapter links"
+    echo "  corpus/works/<project>/"
     echo "  ├── chapters/                   Chapter files"
-    echo "  ├── orphans.md                  Prose without clear placement"
-    echo "  ├── .sofia/                     Work metadata"
-    echo "  └── versions/                   Milestone snapshots"
+    echo "  ├── notes/                      Notebook and chapter notes"
+    echo "  ├── reference/                  Characters, places, objects, events"
+    echo "  ├── manuscript.md               Table of contents"
+    echo "  ├── orphans.md                  Unplaced prose"
+    echo "  └── .sofia/                     Work metadata"
 }
 
 # ============================================================================
@@ -235,75 +246,87 @@ print(data.get('$field', ''))
 
 cmd_init() {
     local project="$1"
+    local template="${2:-default}"
     
     if [ -z "$project" ]; then
         echo "Error: Project name required"
-        echo "Usage: sofia-work init <project>"
+        echo "Usage: sofia-work init <project> [--template <name>]"
         exit 1
     fi
     
     local work_dir="$(get_work_dir "$project")"
-    local chapters_dir="$(get_chapters_dir "$project")"
-    local sofia_dir="$(get_sofia_dir "$project")"
-    local versions_dir="$(get_versions_dir "$project")"
-    local manuscript="$(get_manuscript "$project")"
-    local orphans="$(get_orphans "$project")"
+    local template_dir="$SCRIPT_DIR/templates/default"
+    local genre_template_dir="$SCRIPT_DIR/templates/$template"
     
     if [ -d "$work_dir" ]; then
         echo "Error: Work already exists: $project"
         exit 1
     fi
     
-    echo "Creating manuscript structure for: $project"
+    if [ ! -d "$template_dir" ]; then
+        echo "Error: Default template not found at: templates/default/"
+        exit 1
+    fi
     
-    # Create directories
-    mkdir -p "$chapters_dir"
-    mkdir -p "$sofia_dir"
-    mkdir -p "$versions_dir"
+    if [ "$template" != "default" ] && [ ! -d "$genre_template_dir" ]; then
+        echo "Error: Template not found: $template"
+        echo "Available templates: default, fiction, non-fiction"
+        exit 1
+    fi
+    
+    echo "Creating manuscript structure for: $project"
+    [ "$template" != "default" ] && echo "Using template: $template"
+    
+    # Copy default template structure
+    cp -R "$template_dir" "$work_dir"
+    
+    # Remove .gitkeep files
+    find "$work_dir" -name ".gitkeep" -delete 2>/dev/null || true
+    
+    # Create versions directory
+    mkdir -p "$work_dir/versions"
     
     # Create work.json
     create_work_json "$project"
     
-    # Create manuscript.md (TOC)
-    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
-    cat > "$manuscript" << EOF
-# $title
-
-## Table of Contents
-
-*No chapters yet. Use \`sofia-work ingest\` to import content.*
-
----
-
-**Version:** 0.1.0  
-**Status:** Draft  
-**Last Updated:** $(date +"%Y-%m-%d")
-EOF
-    
-    # Create orphans.md
-    cat > "$orphans" << EOF
-# Orphaned Content
-
-Prose and notes that haven't been placed in a chapter yet.
-
----
-
-*No orphans yet.*
-EOF
-    
     # Create placements.json
-    echo "[]" > "$sofia_dir/placements.json"
+    echo "[]" > "$work_dir/.sofia/placements.json"
+    
+    # Replace template placeholders in manuscript.md
+    local title=$(echo "$project" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+    local today=$(date +"%Y-%m-%d")
+    sed -i '' "s/{{PROJECT_TITLE}}/$title/g" "$work_dir/manuscript.md" 2>/dev/null || true
+    sed -i '' "s/{{DATE}}/$today/g" "$work_dir/manuscript.md" 2>/dev/null || true
+    
+    # If using a genre template, overlay its files (including hidden dirs like .sofia)
+    if [ "$template" != "default" ] && [ -d "$genre_template_dir" ]; then
+        # Copy genre template's .sofia/profile.md over default
+        if [ -f "$genre_template_dir/.sofia/profile.md" ]; then
+            cp "$genre_template_dir/.sofia/profile.md" "$work_dir/.sofia/profile.md"
+        fi
+        # Copy any other files from genre template
+        for item in "$genre_template_dir"/*; do
+            [ -e "$item" ] && cp -R "$item" "$work_dir/" 2>/dev/null || true
+        done
+    fi
+    
+    # Update profile timestamps (after genre overlay so we update the correct profile)
+    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    sed -i '' "s/created = \"\"/created = \"$now\"/g" "$work_dir/.sofia/profile.md" 2>/dev/null || true
+    sed -i '' "s/modified = \"\"/modified = \"$now\"/g" "$work_dir/.sofia/profile.md" 2>/dev/null || true
     
     echo "✓ Created work structure at: $WORKS_ROOT/$project/"
     echo "  - manuscript.md (table of contents)"
     echo "  - chapters/ (chapter files)"
+    echo "  - notes/notebook.md (working hub)"
+    echo "  - reference/ (wiki-style reference)"
     echo "  - orphans.md (unplaced content)"
-    echo "  - .sofia/ (metadata)"
+    echo "  - .sofia/ (metadata and profile)"
     echo "  - versions/ (milestone snapshots)"
     
     if [ "$JSON_OUTPUT" = "true" ]; then
         emit_status_json "Created manuscript structure for $project" \
-            "{\"project\": \"$project\", \"path\": \"$WORKS_ROOT/$project\"}" \
+            "{\"project\": \"$project\", \"path\": \"$WORKS_ROOT/$project\", \"template\": \"$template\"}" \
             "sofia-work status $project"
     fi
 }
@@ -318,19 +341,32 @@ cmd_status() {
     if [ -z "$project" ]; then
         # List all works
         echo "Available works:"
+        local count=0
         if [ -d "$SCRIPT_DIR/$WORKS_ROOT" ]; then
             for dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
                 if [ -d "$dir" ]; then
                     local name=$(basename "$dir")
+                    # Skip demos if hidden
+                    if is_demo_hidden && is_demo_work "$name"; then
+                        continue
+                    fi
                     local version=$(get_work_field "$name" "version")
                     local checkout=$(get_work_field "$name" "checkout")
                     local status="ready"
                     [ -n "$checkout" ] && [ "$checkout" != "None" ] && status="checked out"
-                    echo "  - $name (v$version) [$status]"
+                    local demo_marker=""
+                    is_demo_work "$name" && demo_marker=" [demo]"
+                    echo "  - $name (v$version) [$status]$demo_marker"
+                    ((count++))
                 fi
             done
-        else
+        fi
+        if [ $count -eq 0 ]; then
             echo "  (none)"
+            if is_demo_hidden; then
+                echo ""
+                echo "Note: Demo works are hidden. Run 'sofia-work demo show' to see them."
+            fi
         fi
         return
     fi
@@ -1208,12 +1244,112 @@ Respond with JSON array:
 }
 
 # ============================================================================
+# Demo Management
+# ============================================================================
+
+is_demo_work() {
+    local project="$1"
+    local work_dir="$(get_work_dir "$project")"
+    [ -f "$work_dir/.demo" ]
+}
+
+is_demo_hidden() {
+    [ -f "$DEMO_HIDDEN_FILE" ]
+}
+
+cmd_demo() {
+    local subcmd="$1"
+    
+    case "$subcmd" in
+        list)
+            echo "Demo works:"
+            for work_dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
+                local project=$(basename "$work_dir")
+                if [ -f "$work_dir/.demo" ]; then
+                    local hidden=""
+                    is_demo_hidden && hidden=" (hidden)"
+                    echo "  - $project$hidden"
+                fi
+            done
+            ;;
+        hide)
+            mkdir -p "$(dirname "$DEMO_HIDDEN_FILE")"
+            touch "$DEMO_HIDDEN_FILE"
+            echo "Demo works are now hidden from dashboard and status."
+            echo "To show them again: sofia-work demo show"
+            ;;
+        show)
+            rm -f "$DEMO_HIDDEN_FILE"
+            echo "Demo works are now visible in dashboard and status."
+            ;;
+        remove)
+            local demos=()
+            local user_works=()
+            
+            for work_dir in "$SCRIPT_DIR/$WORKS_ROOT"/*/; do
+                local project=$(basename "$work_dir")
+                [ "$project" = "*" ] && continue
+                if [ -f "$work_dir/.demo" ]; then
+                    demos+=("$project")
+                else
+                    user_works+=("$project")
+                fi
+            done
+            
+            if [ ${#demos[@]} -eq 0 ]; then
+                echo "No demo works found."
+                exit 0
+            fi
+            
+            echo "The following demo works will be REMOVED:"
+            for demo in "${demos[@]}"; do
+                echo "  - $demo"
+            done
+            echo ""
+            
+            if [ ${#user_works[@]} -gt 0 ]; then
+                echo "The following user works will be KEPT:"
+                for work in "${user_works[@]}"; do
+                    echo "  - $work"
+                done
+                echo ""
+            fi
+            
+            if [ "$DRY_RUN" = "true" ]; then
+                echo "[dry-run] Would remove ${#demos[@]} demo work(s)."
+                exit 0
+            fi
+            
+            echo "Are you sure you want to remove ${#demos[@]} demo work(s)? [y/N]"
+            read -r confirm
+            if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+                echo "Cancelled."
+                exit 0
+            fi
+            
+            for demo in "${demos[@]}"; do
+                local work_dir="$(get_work_dir "$demo")"
+                echo "Removing $demo..."
+                rm -rf "$work_dir"
+            done
+            
+            echo "Removed ${#demos[@]} demo work(s)."
+            ;;
+        *)
+            echo "Usage: sofia-work demo <list|hide|show|remove>"
+            exit 1
+            ;;
+    esac
+}
+
+# ============================================================================
 # Argument Parsing
 # ============================================================================
 
 COMMAND=""
 PROJECT=""
 ARG2=""
+TEMPLATE="default"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -1228,6 +1364,14 @@ while [ $# -gt 0 ]; do
         --no-commit)
             NO_COMMIT="true"
             shift
+            ;;
+        --tutorial)
+            TUTORIAL_MODE="true"
+            shift
+            ;;
+        --template)
+            TEMPLATE="$2"
+            shift 2
             ;;
         -h|--help)
             show_usage
@@ -1257,7 +1401,7 @@ fi
 
 case "$COMMAND" in
     init)
-        cmd_init "$PROJECT"
+        cmd_init "$PROJECT" "$TEMPLATE"
         ;;
     status)
         cmd_status "$PROJECT"
@@ -1280,6 +1424,13 @@ case "$COMMAND" in
     watch)
         # Delegate to sofia-watch script
         "$SCRIPT_DIR/scripts/sofia-watch" "$PROJECT" "$ARG2"
+        ;;
+    demo)
+        cmd_demo "$PROJECT"
+        ;;
+    tutorial)
+        # Delegate to sofia-tutorial script
+        "$SCRIPT_DIR/scripts/sofia-tutorial" "$PROJECT"
         ;;
     *)
         echo "Unknown command: $COMMAND"

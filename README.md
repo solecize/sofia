@@ -1,3 +1,5 @@
+> **AI Assistants:** Read [LLM_START_HERE.md](LLM_START_HERE.md) before helping organize writing.
+
 # Sofia
 
 <p align="center">
@@ -31,14 +33,15 @@ The model becomes an executor of your rules, not a creative collaborator.
 ## Quick Start
 
 ```bash
-# Build
-make
-
 # List available switches
-./bin/sofia notator list
+sofia notator list
 
 # Run with switches
-./bin/sofia notator run -process -preview
+sofia notator run -process -preview
+
+# Manage manuscripts
+sofia-work init my-novel
+sofia-work status my-novel
 ```
 
 ## Example
@@ -114,21 +117,20 @@ Workspaces override group defaults and variables without modifying the core libr
 
 ```
 sofia/
-├── src/                    # C source
-├── vendor/tomlc99/         # TOML parser (vendored)
-├── library/
-│   ├── notator/            # Notator-specific switches
-│   │   ├── switches/       # -process, -rename, -preview
-│   │   └── shared/         # -git, -notify, -no-commit
-│   ├── shared/             # Cross-tool switches
-│   │   ├── switches/       # -filename-*, -report-*, -events-ledger
-│   │   └── report/         # Report templates
-│   └── vars/               # Variable definitions
-├── config/
-│   ├── defaults.md         # Global group defaults
-│   └── workspaces/         # Workspace profiles
-├── sessions/               # Run manifests (JSON)
-└── documentation/          # Design docs
+├── corpus/
+│   ├── works/              # Your writing projects
+│   │   └── <project>/
+│   │       ├── chapters/   # Chapter files
+│   │       ├── notes/      # Notebook and chapter notes
+│   │       ├── reference/  # Characters, places, objects, events
+│   │       ├── manuscript.md
+│   │       └── orphans.md
+│   └── incoming/           # Raw imports
+├── library/                # Prompt library (customizable)
+├── config/                 # Configuration and workspaces
+├── sessions/               # Generated prompts and manifests
+├── scripts/                # CLI tools
+└── documentation/          # User guides
 ```
 
 ## Echo JSON
@@ -164,16 +166,9 @@ This enables:
 3. **Transparency**: Every decision is logged and traceable.
 4. **Human control**: You edit the prompt library; Sofia just composes it.
 
-## Building
+## Installation
 
-Requires a C99 compiler (clang, gcc).
-
-```bash
-make          # Build to bin/sofia
-make debug    # Build with debug symbols
-make clean    # Remove build artifacts
-make install  # Copy to /usr/local/bin
-```
+See [BUILDING.md](BUILDING.md) for build instructions.
 
 ## License
 

@@ -1,0 +1,233 @@
+#!/bin/bash
+# sofia-mx: Model Experience (MX) commands for Sofia
+# Usage: sofia-mx <command> [options]
+#
+# MX provides guidance for AI assistants helping organize writing with Sofia.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+MX_DIR="$SCRIPT_DIR/documentation/mx"
+STATE_FILE="$HOME/.sofia/state.json"
+
+# ============================================================================
+# Usage
+# ============================================================================
+
+show_usage() {
+    echo "Usage: sofia-mx <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  state                Output current system state for LLM consumption"
+    echo "  rules                Output safety rules (condensed for repetition)"
+    echo "  validate             Check MX compliance of repository"
+    echo "  status               Show current MX state (human-readable)"
+    echo ""
+    echo "Options:"
+    echo "  --json               Output in JSON format"
+    echo ""
+    echo "MX (Model Experience) helps AI assistants stay focused on organizing"
+    echo "writing using Sofia's CLI tools."
+}
+
+# ============================================================================
+# State Command - Output system state for LLM
+# ============================================================================
+
+cmd_state() {
+    cat << 'EOF'
+# Sofia System State
+
+You are helping organize writing with Sofia. Stay focused on this task.
+
+## Your Purpose
+Help the user organize their writing using Sofia CLI tools.
+Do not improvise raw commands - use Sofia's tools.
+
+## Available Tools
+- `sofia-work` - Manuscript management (init, ingest, surface, checkin, checkout, watch)
+- `sofia-wiki` - Entity extraction and continuity tracking
+- `sofia notator` - Note organization and processing
+- `sofia mx rules` - Review safety rules
+
+## Working Directories
+- `corpus/works/` - User's writing projects
+- `corpus/incoming/` - Raw imports to be processed
+- `library/` - Prompt library
+- `config/` - User configuration
+
+## Inside Each Work
+- `chapters/` - Chapter files
+- `notes/notebook.md` - Working hub
+- `notes/<chapter>-notes.md` - Chapter summaries
+- `reference/` - Characters, places, objects, events
+- `manuscript.md` - Table of contents
+- `orphans.md` - Unplaced prose
+
+## Safety Rules (Summary)
+1. Ask before any git commit or push
+2. Ask before deleting files
+3. Show diffs before committing
+4. Never chain commit && push
+5. Stay within this repository
+
+## Current Task
+Ask the user what they need help organizing.
+EOF
+}
+
+# ============================================================================
+# Rules Command - Output condensed safety rules
+# ============================================================================
+
+cmd_rules() {
+    cat << 'EOF'
+# Sofia MX Safety Rules
+
+## STOP - Ask Before These Actions
+- git commit (show diff first)
+- git push (separate approval from commit)
+- Deleting files (list them first)
+- Moving files (show source and destination)
+
+## NEVER
+- Chain `git commit && git push`
+- Delete without listing files
+- Push without separate approval
+- Modify files outside corpus/notes without asking
+
+## ALWAYS
+- Use Sofia CLI tools (sofia-work, sofia-wiki, sofia notator)
+- Explain what will change before acting
+- Wait for explicit "yes" before proceeding
+- Ask the user if uncertain
+
+## Focus
+Your job is to help organize writing, not create content.
+Use Sofia's tools. Stay on task.
+EOF
+}
+
+# ============================================================================
+# Validate Command - Check MX compliance
+# ============================================================================
+
+cmd_validate() {
+    local errors=0
+    local warnings=0
+    
+    echo "Validating MX compliance..."
+    echo ""
+    
+    # Check for LLM_START_HERE.md
+    if [ -f "$SCRIPT_DIR/LLM_START_HERE.md" ]; then
+        echo "✓ LLM_START_HERE.md exists"
+    else
+        echo "✗ LLM_START_HERE.md missing"
+        ((errors++))
+    fi
+    
+    # Check for documentation/mx/
+    if [ -d "$MX_DIR" ]; then
+        echo "✓ documentation/mx/ exists"
+    else
+        echo "✗ documentation/mx/ missing"
+        ((errors++))
+    fi
+    
+    # Check for required MX files
+    for file in README.md safety.md repository-scope.md commit-protocol.md; do
+        if [ -f "$MX_DIR/$file" ]; then
+            echo "  ✓ $file"
+        else
+            echo "  ✗ $file missing"
+            ((errors++))
+        fi
+    done
+    
+    # Check for corpus/works/
+    if [ -d "$SCRIPT_DIR/corpus/works" ]; then
+        echo "✓ corpus/works/ exists"
+    else
+        echo "⚠ corpus/works/ missing (no writing projects)"
+        ((warnings++))
+    fi
+    
+    # Check for scripts
+    for script in sofia-work sofia-wiki; do
+        if [ -x "$SCRIPT_DIR/scripts/$script" ]; then
+            echo "✓ scripts/$script executable"
+        else
+            echo "⚠ scripts/$script not executable"
+            ((warnings++))
+        fi
+    done
+    
+    echo ""
+    if [ $errors -eq 0 ] && [ $warnings -eq 0 ]; then
+        echo "MX validation passed."
+    elif [ $errors -eq 0 ]; then
+        echo "MX validation passed with $warnings warning(s)."
+    else
+        echo "MX validation failed: $errors error(s), $warnings warning(s)."
+        exit 1
+    fi
+}
+
+# ============================================================================
+# Status Command - Human-readable status
+# ============================================================================
+
+cmd_status() {
+    echo "Sofia MX Status"
+    echo "==============="
+    echo ""
+    echo "MX Documentation: $MX_DIR"
+    echo ""
+    
+    if [ -f "$STATE_FILE" ]; then
+        echo "State file: $STATE_FILE"
+        echo "Last updated: $(stat -f '%Sm' "$STATE_FILE" 2>/dev/null || stat -c '%y' "$STATE_FILE" 2>/dev/null)"
+    else
+        echo "State file: not created"
+    fi
+    
+    echo ""
+    echo "Run 'sofia-mx validate' to check MX compliance."
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+if [ $# -eq 0 ]; then
+    show_usage
+    exit 0
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    state)
+        cmd_state "$@"
+        ;;
+    rules)
+        cmd_rules "$@"
+        ;;
+    validate)
+        cmd_validate "$@"
+        ;;
+    status)
+        cmd_status "$@"
+        ;;
+    -h|--help|help)
+        show_usage
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac
