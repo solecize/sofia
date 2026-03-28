@@ -254,17 +254,17 @@ ask_choice() {
     shift
     local choices=("$@")
     
-    echo ""
-    echo -e "${BOLD}$prompt${NC}"
-    echo ""
+    echo "" >&2
+    echo -e "${BOLD}$prompt${NC}" >&2
+    echo "" >&2
     
     local i=1
     for choice in "${choices[@]}"; do
-        print_choice "$i" "$choice"
+        echo -e "  ${GREEN}[$i]${NC} $choice" >&2
         ((i++))
     done
     
-    echo ""
+    echo "" >&2
     read -p "Enter choice (1-${#choices[@]}): " choice
     echo "$choice"
 }
