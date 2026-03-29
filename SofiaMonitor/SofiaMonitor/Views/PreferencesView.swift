@@ -168,7 +168,10 @@ struct PreferencesView: View {
                 Text("General")
                     .font(.headline)
                 
-                Toggle("Launch at Login", isOn: .constant(false))
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { appState.launchAtLogin },
+                    set: { appState.launchAtLogin = $0 }
+                ))
                 
                 Toggle("Show Notifications", isOn: .constant(true))
                 
