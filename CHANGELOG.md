@@ -4,6 +4,18 @@ All notable changes to Sofia are documented in this file.
 
 ---
 
+## [2026-03-29] Writing Organization Mode
+
+### Added
+- **Writing Organization Mode**: Toggle in SofiaMonitor to configure AI assistants for writing tasks
+  - Injects Sofia-specific rules into `.windsurfrules`, `.cursorrules`, or `.github/copilot-instructions.md`
+  - Rules point AI to MX documentation and enforce CLI usage
+  - Preserves existing user rules with dated backup
+  - Supports Windsurf, Cursor, and VS Code (Copilot)
+- **Writing rules template**: `templates/writing-rules.md` for AI assistant configuration
+
+---
+
 ## [2026-03-29] Cleanup Release
 
 ### Added
