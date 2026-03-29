@@ -35,7 +35,7 @@ Sofia Monitor runs in your menu bar and watches your Sofia environments for chan
 │ 3 changes pending review    │
 │ [Review Changes...]         │
 ├─────────────────────────────┤
-│ Open in Windsurf ▸          │
+│ Open in [Editor] ▸          │
 │ Open Dashboard              │
 │ Preferences...              │
 │ Quit                        │
@@ -79,28 +79,35 @@ The app remembers which environment you accessed most recently and marks it with
 
 ## Editor Integration
 
-### Open in Editor
+Sofia Monitor routes files to different editors based on type:
 
-The **Open in Windsurf ▸** submenu provides quick access to:
+| File Type | Extensions | Default |
+|-----------|------------|--------|
+| **Environment** | Directories, `.swift`, `.sh`, `.json`, `.py`, etc. | Windsurf |
+| **Document** | `.md`, `.txt`, `.rtf` | OS Default |
+
+### Configuring Editors
+
+Open **Preferences → Editors** to set your preferred editors:
+
+**Environment Editor** (for code and directories):
+- Windsurf, Cursor, VS Code
+- OS Default (uses Finder's default)
+
+**Document Editor** (for prose and markdown):
+- Typora, iA Writer, Obsidian
+- OS Default (uses Finder's default for `.md` files)
+
+The "OS Default" option respects your Finder settings. If you've set BBEdit, TextWrangler, or any other app as your default handler for `.md` files, Sofia Monitor will use it.
+
+### Open in Editor Menu
+
+The **Open in [Editor] ▸** submenu provides quick access to:
 
 - Environment roots (e.g., `sofia/`, `writelab/`)
 - Recent work directories
-- **Change Editor...** to select a different default
 
-### Supported Editors
-
-| Editor | Detection Path |
-|--------|----------------|
-| Windsurf | `/Applications/Windsurf.app` |
-| Cursor | `/Applications/Cursor.app` |
-| VS Code | `/Applications/Visual Studio Code.app` |
-
-The app auto-detects installed editors and uses the CLI to open projects:
-
-```bash
-# Opens environment in Windsurf
-/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf /path/to/sofia
-```
+The menu label updates to show your selected environment editor.
 
 ## Auto-Commit Behavior
 
@@ -150,16 +157,16 @@ Settings are stored in:
       "name": "sofia",
       "path": "/Users/you/Documents/sofia",
       "lastUsed": "2026-03-21T10:30:00Z"
-    },
-    {
-      "name": "writelab",
-      "path": "/Users/you/Documents/writelab",
-      "lastUsed": "2026-03-20T15:00:00Z"
     }
   ],
-  "defaultEditor": "windsurf"
+  "isLocked": false,
+  "lockedEnvironmentId": null
 }
 ```
+
+Editor preferences are stored separately in UserDefaults:
+- `environmentEditor`: Selected environment editor (e.g., "windsurf", "system")
+- `documentEditor`: Selected document editor (e.g., "typora", "system")
 
 ## Requirements
 

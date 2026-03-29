@@ -109,10 +109,14 @@ struct PreferencesView: View {
                     Picker("", selection: $appState.environmentEditor) {
                         ForEach(AppState.environmentEditors, id: \.id) { editor in
                             HStack {
-                                Text(editor.name)
-                                if !editor.path.isEmpty && !FileManager.default.fileExists(atPath: editor.path) {
-                                    Text("(not installed)")
-                                        .foregroundColor(.secondary)
+                                if editor.id == "system" {
+                                    Text("OS Default (\(AppState.osDefaultDirectoryApp))")
+                                } else {
+                                    Text(editor.name)
+                                    if !FileManager.default.fileExists(atPath: editor.path) {
+                                        Text("(not installed)")
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                             .tag(editor.id)
@@ -135,10 +139,14 @@ struct PreferencesView: View {
                     Picker("", selection: $appState.documentEditor) {
                         ForEach(AppState.documentEditors, id: \.id) { editor in
                             HStack {
-                                Text(editor.name)
-                                if !editor.path.isEmpty && !FileManager.default.fileExists(atPath: editor.path) {
-                                    Text("(not installed)")
-                                        .foregroundColor(.secondary)
+                                if editor.id == "system" {
+                                    Text("OS Default (\(AppState.osDefaultDocumentApp))")
+                                } else {
+                                    Text(editor.name)
+                                    if !FileManager.default.fileExists(atPath: editor.path) {
+                                        Text("(not installed)")
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                             .tag(editor.id)

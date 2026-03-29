@@ -148,6 +148,23 @@ class AppState: ObservableObject {
         Self.documentEditors.first(where: { $0.id == documentEditor })?.name ?? "Editor"
     }
     
+    // Get the OS default app name for a file type
+    static func defaultAppName(for fileExtension: String) -> String? {
+        let tempURL = URL(fileURLWithPath: "/tmp/test.\(fileExtension)")
+        guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: tempURL) else {
+            return nil
+        }
+        return appURL.deletingPathExtension().lastPathComponent
+    }
+    
+    static var osDefaultDocumentApp: String {
+        defaultAppName(for: "md") ?? "Finder"
+    }
+    
+    static var osDefaultDirectoryApp: String {
+        "Finder"
+    }
+    
     init() {
         loadEnvironments()
         startWatching()
