@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 // =============================================================================
 // COMMAND-LINE COMPILATION NOTES
@@ -100,6 +101,29 @@ class AppState: ObservableObject {
     
     // Writing Organization Mode
     @AppStorage("writingModeEnabled") var writingModeEnabled: Bool = false
+    
+    // Launch at Login
+    var launchAtLogin: Bool {
+        get {
+            if #available(macOS 13.0, *) {
+                return SMAppService.mainApp.status == .enabled
+            }
+            return false
+        }
+        set {
+            if #available(macOS 13.0, *) {
+                do {
+                    if newValue {
+                        try SMAppService.mainApp.register()
+                    } else {
+                        try SMAppService.mainApp.unregister()
+                    }
+                } catch {
+                    print("Failed to \(newValue ? "enable" : "disable") launch at login: \(error)")
+                }
+            }
+        }
+    }
     
     private var fileWatcher: FileWatcher?
     private var gitService: GitService?
