@@ -44,6 +44,16 @@ When helping a user with Sofia, your job is to:
 | `sofia notator` | Note organization and processing |
 | `sofia mx` | System state and guidance |
 
+## SofiaMonitor Helper App
+
+Build and install from command line (no Xcode required):
+
+```bash
+cd SofiaMonitor && ./build.sh --install
+```
+
+The app provides environment locking, writing mode, and auto-commit features. See `documentation/sofia-monitor.md` for details.
+
 ## For AI Assistants
 
 If you are an AI assistant reading this:
