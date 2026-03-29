@@ -4,6 +4,25 @@ All notable changes to Sofia are documented in this file.
 
 ---
 
+## [2026-03-29] Helper App Fixes
+
+### Added
+- **Environment Locking Enforcement**: Lock now creates `.sofia/environment.lock` and adds path restriction to `.windsurfrules`
+  - AI assistants are explicitly told not to access files outside the locked path
+  - `sofia-mx status` shows lock state
+- **Environment Auto-Discovery**: Recursive scan of `~/Documents/` (up to 4 levels) finds Sofia environments on first launch
+  - "Scan for Environments" button in Preferences for manual discovery
+- **Writing Mode Template Embedded**: Rules template bundled in app, no longer requires external file
+
+### Fixed
+- **Writing Organization Mode**: Now works in any environment (template was previously read from environment path)
+- **Environment Discovery**: Now finds nested environments like `~/Documents/writelab/CascadeProjects/windsurf-project/sofia/`
+
+### Changed
+- `sofia-mx status` now displays environment lock and writing mode status
+
+---
+
 ## [2026-03-29] Writing Organization Mode
 
 ### Added

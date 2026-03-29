@@ -302,30 +302,9 @@ struct PreferencesView: View {
     }
     
     private func scanForEnvironments() {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let documentsDir = homeDir.appendingPathComponent("Documents")
-        
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: documentsDir,
-            includingPropertiesForKeys: nil
-        ) else { return }
-        
-        for url in contents {
-            let corpusPath = url.appendingPathComponent("corpus")
-            if FileManager.default.fileExists(atPath: corpusPath.path) {
-                // Check if already added
-                let path = url.path
-                if !appState.environments.contains(where: { $0.path == path }) {
-                    let env = Environment(
-                        name: url.lastPathComponent,
-                        path: path,
-                        lastUsed: Date.distantPast
-                    )
-                    appState.environments.append(env)
-                }
-            }
-        }
-        
+        // Use AppState's recursive scanner
+        let discovered = appState.scanForEnvironments()
+        appState.environments.append(contentsOf: discovered)
         appState.saveEnvironments()
     }
 }

@@ -180,6 +180,39 @@ Options for each:
 
 The Preferences → Editors tab shows "OS Default (AppName)" where AppName is queried from `NSWorkspace.shared.urlForApplication(toOpen:)`.
 
+### Environment Locking
+
+When lock is enabled via Preferences → Environments:
+
+1. **Lock file created:** `.sofia/environment.lock`
+   ```
+   locked_path: /Users/you/Documents/sofia
+   locked_at: 2026-03-29T15:00:00Z
+   environment_name: sofia
+   ```
+
+2. **Rules updated:** Lock restriction appended to `.windsurfrules`:
+   ```markdown
+   <!-- SOFIA ENVIRONMENT LOCK -->
+   ## Environment Restriction
+   **CRITICAL:** This environment is LOCKED. You must NEVER access files outside:
+   `/Users/you/Documents/sofia`
+   <!-- END SOFIA ENVIRONMENT LOCK -->
+   ```
+
+3. **AI behavior:** Assistants should check for `.sofia/environment.lock` and respect the `locked_path` boundary.
+
+### Writing Organization Mode
+
+When enabled via Preferences → AI Assistant:
+
+1. **Rules injected:** MX safety rules prepended to `.windsurfrules` (or `.cursorrules` / `.github/copilot-instructions.md`)
+2. **Template embedded:** Rules are bundled in the app (no external file dependency)
+3. **User rules preserved:** Existing rules wrapped in `<!-- USER RULES -->` markers
+4. **Backup created:** Dated backup (e.g., `.windsurfrules.backup-20260329`)
+
+Check status with: `sofia-mx status`
+
 ---
 
 ## Tutorial System

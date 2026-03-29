@@ -42,12 +42,25 @@ Your writing is valuable. The AI assistant should:
 
 ## Boundaries
 
+### Environment Lock
+
+Sofia Monitor can lock an environment to enforce repository boundaries. When locked:
+
+1. **Lock file exists:** `.sofia/environment.lock` contains the locked path
+2. **Rules updated:** `.windsurfrules` contains explicit path restriction
+
+**AI assistants should:**
+- Check for `.sofia/environment.lock` at session start
+- If present, read `locked_path` and refuse to access files outside it
+- Run `sofia-mx status` to see current lock state
+
 ### Stay Within This Repository
 
 - Work only within the current Sofia environment
 - Do not reference or access other repositories
 - Do not copy files between different repositories
 - If uncertain about a path, ask the user
+- **If `.sofia/environment.lock` exists, NEVER access files outside the locked path**
 
 ### User's Writing
 

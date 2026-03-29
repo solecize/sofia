@@ -185,6 +185,31 @@ cmd_status() {
     echo "MX Documentation: $MX_DIR"
     echo ""
     
+    # Check environment lock status
+    LOCK_FILE="$SCRIPT_DIR/.sofia/environment.lock"
+    if [ -f "$LOCK_FILE" ]; then
+        echo "Environment Lock: ACTIVE"
+        LOCKED_PATH=$(grep "^locked_path:" "$LOCK_FILE" | cut -d' ' -f2-)
+        LOCKED_AT=$(grep "^locked_at:" "$LOCK_FILE" | cut -d' ' -f2-)
+        echo "  Locked path: $LOCKED_PATH"
+        echo "  Locked at: $LOCKED_AT"
+        echo ""
+        echo "  ⚠️  AI assistants should NOT access files outside the locked path."
+    else
+        echo "Environment Lock: not active"
+    fi
+    echo ""
+    
+    # Check writing mode status
+    RULES_FILE="$SCRIPT_DIR/.windsurfrules"
+    if [ -f "$RULES_FILE" ] && grep -q "SOFIA WRITING MODE: ACTIVE" "$RULES_FILE" 2>/dev/null; then
+        echo "Writing Mode: ACTIVE"
+        echo "  MX rules injected into .windsurfrules"
+    else
+        echo "Writing Mode: not active"
+    fi
+    echo ""
+    
     if [ -f "$STATE_FILE" ]; then
         echo "State file: $STATE_FILE"
         echo "Last updated: $(stat -f '%Sm' "$STATE_FILE" 2>/dev/null || stat -c '%y' "$STATE_FILE" 2>/dev/null)"
