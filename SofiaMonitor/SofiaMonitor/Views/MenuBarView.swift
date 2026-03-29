@@ -114,7 +114,7 @@ struct MenuBarView: View {
             }
             
             // Actions
-            Menu("Open in Windsurf") {
+            Menu("Open in \(appState.environmentEditorName)") {
                 ForEach(appState.environments) { env in
                     Button(env.name + "/") {
                         appState.openInEditor(env.path)
@@ -129,12 +129,6 @@ struct MenuBarView: View {
                             appState.openInEditor(work.path)
                         }
                     }
-                }
-                
-                Divider()
-                
-                Button("Change Editor...") {
-                    // TODO: Open editor preferences
                 }
             }
             .padding(.horizontal, 12)
