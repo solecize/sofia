@@ -52,3 +52,4 @@ notes/**/*.mp4
 !SofiaMonitor/**/*.png
 !SofiaMonitor/**/*.svg
 !SofiaMonitor/**/*.icns
+SofiaMonitor/SofiaMonitor.app/

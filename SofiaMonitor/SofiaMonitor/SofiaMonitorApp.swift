@@ -111,6 +111,7 @@ class AppState: ObservableObject {
             return false
         }
         set {
+            objectWillChange.send()
             if #available(macOS 13.0, *) {
                 do {
                     if newValue {
