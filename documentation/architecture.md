@@ -11,19 +11,21 @@ Sofia is a **prompt composer**—it builds structured, deterministic prompts fro
 1. **Prompt-as-output**: Sofia returns prompts, not results
 2. **LLM-as-agent**: Execution is delegated to a language model
 3. **Human control**: All behaviors are editable via Markdown and config
-4. **Minimal dependencies**: C99 with vendored TOML parser
+4. **Bash scripts**: CLI tools implemented as portable shell scripts
 
 ---
 
 ## Components
 
-### CLI (`src/sofia.c`)
+### CLI Scripts
 
-Entry point with subcommands:
+Entry points in `scripts/`:
 
 ```
-sofia notator list              # List available switches
-sofia notator run <switches>    # Compose and emit prompts
+sofia-work init <project>       # Create new manuscript
+sofia-work ingest <project>     # Import content
+sofia-dashboard                 # Generate corpus/index.md
+sofia-tutorial                  # Interactive tutorial
 ```
 
 ### Library Loader
@@ -118,8 +120,8 @@ namespace = "paths"
 ```
 
 ```toml
-incoming = "notes/incoming"
-preview  = "notes/preview"
+incoming = "corpus/incoming"
+works    = "corpus/works"
 ```
 
 Variables are referenced as `{namespace.key}` in prompts.
@@ -194,7 +196,7 @@ sofia notator run --workspace meeting-notes -process
     "requestedSwitches": ["-process", "-preview"],
     "includedSwitches": ["-rename", "-filename-kebab"],
     "resolvedSwitches": ["-filename-kebab", "-rename", "-process", "-preview"],
-    "variables": {"paths.incoming": "notes/incoming", ...},
+    "variables": {"paths.incoming": "corpus/incoming", ...},
     "composedPrompts": ["...resolved prompt text..."],
     "sourceFiles": {"-process": "library/notator/switches/process.md", ...},
     "selectedGroups": {
@@ -261,13 +263,15 @@ Manuscript management CLI for structured writing projects. See [sofia-work.md](s
 - Chapter-based manuscript organization
 - Git micro-commits via watch daemon
 - Prose surfacing from notes with LLM assistance
-- Wiki and canon directory sync
+- Reference directory for entities
 
 ### Sofia Wiki
 
 Entity extraction and continuity tracking for fiction projects.
 
-**Commands:** `ingest`, `extract`, `status`, `sync`, `resolve`, `entities`, `validate`, `deprecate`
+**Commands:** `extract`, `update`, `status`
+
+Entities are stored in per-work `reference/` directories (people, places, objects, events, themes).
 
 ---
 

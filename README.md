@@ -54,7 +54,7 @@ Sofia composes:
 
 Output prompt:
   "You are an editing assistant that organizes notes without adding prose.
-   Move files from notes/incoming to notes/preview.
+   Move files from corpus/incoming to corpus/works/.
    Apply kebab-case naming. Do not invent content.
    Annotate all outputs as a dry run (preview)..."
 ```
@@ -96,7 +96,7 @@ Sofia resolves conflicts with clear precedence: CLI > tool include > workspace >
 Prompts use `{namespace.key}` placeholders:
 
 ```
-{paths.incoming}     → notes/incoming
+{paths.incoming}     → corpus/incoming
 {naming.kebab_case}  → "lowercase, hyphen-separated..."
 {report.dir}         → reports
 ```
@@ -108,7 +108,7 @@ Variables live in `library/vars/*.md` and can be overridden per workspace.
 Profiles for different contexts (e.g., meeting notes vs. fiction):
 
 ```bash
-./bin/sofia notator run --workspace meeting-notes -process
+./scripts/sofia-work status
 ```
 
 Workspaces override group defaults and variables without modifying the core library.

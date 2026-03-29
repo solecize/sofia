@@ -6,8 +6,7 @@ namespace = "paths"
 +++
 
 ```toml
-incoming = "notes/incoming"
-preview  = "notes/preview"
-wiki     = "notes/wiki"
-archive  = "notes/archive"
+incoming = "corpus/incoming"
+works    = "corpus/works"
+index    = "corpus/index.md"
 ```
