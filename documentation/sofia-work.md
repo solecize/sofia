@@ -50,13 +50,15 @@ sofia-work init origin-of-species
 
 Creates:
 ```
-notes/works/origin-of-species/
+corpus/works/origin-of-species/
 ├── manuscript.md          # Table of contents
 ├── chapters/              # Chapter files
+├── notes/                 # Notebook and chapter notes
+├── reference/             # Characters, places, objects, events
 ├── orphans.md             # Unplaced prose
-├── .sofia/
-│   └── work.json          # Metadata
-└── versions/              # Snapshots
+└── .sofia/
+    ├── work.json          # Metadata
+    └── profile.md         # Work profile
 ```
 
 ### `ingest <project> <source>`
@@ -77,8 +79,7 @@ sofia-work ingest origin-of-species notes-folder/
 
 **Post-ingest:**
 - Regenerates table of contents
-- Syncs chapters to `notes/canon/<project>/`
-- Creates wiki chapter index at `notes/wiki/<project>/chapters/`
+- Updates work metadata
 
 ### `status [project]`
 
@@ -147,7 +148,7 @@ sofia-work surface origin-of-species --json  # LLM-assisted placement
 ```
 
 **Process:**
-1. Scans `notes/incoming/` and `notes/wiki/<project>/` for prose
+1. Scans `corpus/incoming/` for prose
 2. Classifies content using `classify-prose` script
 3. Places tagged content (e.g., `chapter: 01-opening`)
 4. Generates LLM prompt for untagged content
@@ -190,30 +191,28 @@ sofia-work watch origin-of-species --stop   # Stop daemon
 ## Directory Structure
 
 ```
-notes/
+corpus/
 ├── works/<project>/           # Manuscript workspace
 │   ├── manuscript.md          # TOC with chapter links
-│   ├── chapters/              # Chapter files (01-*.md, WC-*.md)
+│   ├── chapters/              # Chapter files (01-*.md)
+│   ├── notes/                 # Notebook and chapter notes
+│   │   ├── notebook.md        # Working hub
+│   │   └── <chapter>-notes.md # Per-chapter notes
+│   ├── reference/             # Wiki-style reference
+│   │   ├── people/
+│   │   ├── places/
+│   │   ├── objects/
+│   │   ├── events/
+│   │   └── themes/
 │   ├── orphans.md             # Unplaced prose
-│   ├── reference-notes.md     # Extracted notes/outlines
-│   ├── .sofia/
-│   │   ├── work.json          # Metadata, version, checkout
-│   │   ├── placements.json    # Surfacing audit log
-│   │   ├── watch.pid          # Daemon PID
-│   │   └── watch.log          # Daemon log
-│   └── versions/              # Milestone snapshots
-│       └── pre-edit-YYYYMMDD-HHMMSS/
+│   └── .sofia/
+│       ├── work.json          # Metadata
+│       └── profile.md         # Work profile (genre, phase)
 │
-├── wiki/<project>/            # Wiki (synced from manuscript)
-│   ├── chapters/index.md      # Chapter listing
-│   ├── people/
-│   ├── places/
-│   └── ...
+├── incoming/                  # Raw imports
+│   └── tutorial/              # Demo content
 │
-├── canon/<project>/           # Canonical chapters (read-only copy)
-│   └── chapters/
-│
-└── incoming/                  # Raw imports
+└── index.md                   # Dashboard (auto-generated)
 ```
 
 ---
