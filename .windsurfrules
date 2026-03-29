@@ -1,0 +1,63 @@
+# Sofia Development Rules
+
+## Documentation Parity
+
+When planning any code change:
+1. **Flag doc changes** alongside code changes in the plan
+2. **Update docs** in the same commit/PR as code when possible
+3. **CHANGELOG.md** must be updated for any user-facing change
+
+### Development Workflow
+
+```
+1. User requests functionality
+2. Discuss options
+3. User approves option
+4. AI creates plan with BOTH code AND doc changes flagged
+5. Work through changes (code + docs together)
+6. Mid-stream updates noted for both
+7. Implementation loop
+8. Approve code implementation
+9. Doc review checkpoint (verify docs match new code)
+10. Approve documentation
+11. Release includes: new code, updated docs, changelog entry
+```
+
+### Documents to Check by Change Type
+
+| Change Type | Check These Docs |
+|-------------|------------------|
+| New feature | README.md, relevant docs in documentation/, CHANGELOG.md |
+| CLI change | documentation/sofia-*.md, CHANGELOG.md |
+| Config change | documentation/sofia-monitor.md, .windsurf/ARCHITECTURE.md |
+| Structure change | .windsurf/ARCHITECTURE.md, documentation/mx/*.md |
+| Deprecation | CHANGELOG.md (with migration notes) |
+
+### Plan Format
+
+Every plan must include:
+- [ ] Code changes (files, functions)
+- [ ] Documentation changes (which docs, what sections)
+- [ ] CHANGELOG entry (if user-facing)
+
+### Doc Review Checkpoint
+
+After code is approved, before final commit:
+1. List all docs that were flagged for update
+2. Verify each doc accurately reflects the new code
+3. Check for stale references to old behavior
+4. Confirm CHANGELOG entry is complete
+5. Get explicit user approval for documentation
+
+## Commit Protocol
+
+- Code and related doc updates should be in the same commit when logical
+- CHANGELOG updates can be batched at release time
+- Always wait for explicit user approval before commit/push
+- Never chain commit and push together; each requires separate approval
+
+## Branch Strategy
+
+- `main`: Development branch
+- `public`: Release branch (GitHub default)
+- Verify no private content before merging main → public
