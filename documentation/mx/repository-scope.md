@@ -57,12 +57,12 @@ The user's creative work is valuable. Before any operation that modifies their w
 2. Ask for approval
 3. Wait for explicit confirmation
 
-## Demo Works
+## Demo Content
 
-Sofia includes demo works for testing:
+Sofia includes public domain texts for learning:
 
-- `christmas-carol` - Public domain (Charles Dickens)
-- `frankenstein` - Public domain (Mary Shelley)
-- `origin-of-species` - Public domain (Charles Darwin)
+- `corpus/incoming/tutorial/christmas-carol-raw.md` - Charles Dickens
+- `corpus/incoming/tutorial/frankenstein-raw.md` - Mary Shelley  
+- `corpus/incoming/tutorial/origin-of-species-raw.md` - Charles Darwin
 
-These can be used to learn Sofia's features before working on your own projects.
+Run `./scripts/sofia-tutorial` to process these into full works and learn Sofia's features.
