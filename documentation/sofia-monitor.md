@@ -109,6 +109,43 @@ The **Open in [Editor] ▸** submenu provides quick access to:
 
 The menu label updates to show your selected environment editor.
 
+## Writing Organization Mode
+
+Sofia Monitor can configure your AI coding assistant to focus on writing organization tasks.
+
+### Enabling
+
+Open **Preferences → AI Assistant** and toggle **Writing Organization Mode**.
+
+When enabled, Sofia injects writing-focused rules into your AI assistant's configuration file:
+
+| Editor | Rules File |
+|--------|------------|
+| Windsurf | `.windsurfrules` |
+| Cursor | `.cursorrules` |
+| VS Code (Copilot) | `.github/copilot-instructions.md` |
+
+The rules file is determined by your selected Environment Editor.
+
+### What It Does
+
+The injected rules tell your AI assistant to:
+- Use Sofia CLI tools (`sofia-work`, `sofia-wiki`, etc.) instead of raw commands
+- Follow MX safety rules (ask before commits, never chain operations)
+- Focus on writing organization, not code development
+- Reference `documentation/mx/` for guidance
+
+### Preserving Your Rules
+
+Your existing rules are:
+1. **Backed up** with a dated filename (e.g., `.windsurfrules.backup-20260329`)
+2. **Preserved** in the merged file with `<!-- USER RULES -->` markers
+3. **Restored** when you disable Writing Organization Mode
+
+### Disabling
+
+Toggle off Writing Organization Mode to restore your original rules. The Sofia rules section is removed and your preserved rules are restored.
+
 ## Auto-Commit Behavior
 
 ### Real-Time Commits

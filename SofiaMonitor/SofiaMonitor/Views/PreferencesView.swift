@@ -5,6 +5,7 @@ struct PreferencesView: View {
     @State private var newEnvironmentPath: String = ""
     @State private var newEnvironmentName: String = ""
     @State private var showingAddSheet: Bool = false
+    @State private var showingWritingModeAlert: Bool = false
     
     var body: some View {
         TabView {
@@ -200,6 +201,61 @@ struct PreferencesView: View {
             .padding()
             .tabItem {
                 Label("General", systemImage: "gear")
+            }
+            
+            // AI Assistant Tab
+            VStack(alignment: .leading, spacing: 16) {
+                Text("AI Assistant")
+                    .font(.headline)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Writing Organization Mode", isOn: Binding(
+                        get: { appState.writingModeEnabled },
+                        set: { newValue in
+                            if newValue {
+                                showingWritingModeAlert = true
+                            } else {
+                                appState.writingModeEnabled = false
+                                appState.disableWritingMode()
+                            }
+                        }
+                    ))
+                    
+                    Text("Configures \(appState.rulesFileName) for writing organization")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    if appState.writingModeEnabled {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Active in \(appState.activeEnvironment?.name ?? "environment")")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                Text("When enabled, Sofia injects writing-focused rules into your AI assistant's configuration file. Your existing rules are preserved and can be restored.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+            .padding()
+            .tabItem {
+                Label("AI Assistant", systemImage: "brain")
+            }
+            .alert("Enable Writing Organization Mode?", isPresented: $showingWritingModeAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Enable") {
+                    appState.writingModeEnabled = true
+                    appState.enableWritingMode()
+                }
+            } message: {
+                Text("This will modify \(appState.rulesFileName) in your active environment. Your existing rules will be preserved and can be restored by disabling this mode. A backup will be created.")
             }
         }
         .frame(width: 450, height: 300)
