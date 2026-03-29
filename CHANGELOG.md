@@ -7,6 +7,7 @@ All notable changes to Sofia are documented in this file.
 ## [2026-03-29] Helper App Fixes
 
 ### Added
+- **Build instructions for AI**: Added SofiaMonitor build commands to `LLM_START_HERE.md` and MX docs
 - **Environment Locking Enforcement**: Lock now creates `.sofia/environment.lock` and adds path restriction to `.windsurfrules`
   - AI assistants are explicitly told not to access files outside the locked path
   - `sofia-mx status` shows lock state

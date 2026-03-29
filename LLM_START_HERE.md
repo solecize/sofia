@@ -65,6 +65,18 @@ Do not improvise raw commands. Use Sofia's tools:
 | `manuscript.md` | Table of contents |
 | `orphans.md` | Unplaced prose |
 
+## Building SofiaMonitor
+
+The helper app can be built from command line (no Xcode required):
+
+```bash
+cd SofiaMonitor && ./build.sh --install --run
+```
+
+Options:
+- `--install` - Copy to ~/Applications
+- `--run` - Launch after build
+
 ## Full Documentation
 
 Read the complete MX documentation in `documentation/mx/`
