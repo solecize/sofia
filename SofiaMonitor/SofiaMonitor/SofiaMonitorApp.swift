@@ -202,6 +202,130 @@ class AppState: ObservableObject {
         }
     }
     
+    // Embedded writing rules template (so it works in any environment)
+    static let writingRulesTemplate = """
+# Sofia Writing Organization Mode
+
+You are helping organize writing projects. Use Sofia CLI tools rather than raw shell commands.
+
+## MX Documentation
+
+Read these files for guidance on how to help:
+- `documentation/mx/README.md` - Overview of your role
+- `documentation/mx/safety.md` - STOP/NEVER/VERIFY rules (critical)
+- `documentation/mx/terminology.md` - Corpus, works, notes, reference definitions
+
+## Sofia CLI Tools
+
+| Tool | Purpose |
+|------|---------|
+| `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout) |
+| `sofia-wiki` | Entity extraction and continuity tracking |
+| `sofia-dashboard` | Generate corpus/index.md dashboard |
+| `sofia-tutorial` | Interactive tutorial for new users |
+
+## Rules
+
+1. **Use Sofia CLI tools** instead of raw shell commands for file organization
+2. **Ask before any git commit or push** - never chain these operations
+3. **Focus on writing organization**, not code development
+4. **When in doubt**, run `cat documentation/mx/safety.md` to review safety rules
+
+## Safety Summary
+
+**STOP** - Ask before: git commit, git push, file deletion, moving files
+**NEVER** - Chain commit && push, delete without listing files, assume backups exist
+**VERIFY** - Check git status, confirm correct repository, explain consequences
+
+## Your Purpose
+
+Help the user organize their writing by:
+- Processing incoming notes into works
+- Managing chapter structure
+- Tracking entities (characters, places, events)
+- Maintaining continuity across the manuscript
+
+Do not write code unless explicitly asked. Your primary role is writing organization.
+"""
+    
+    // MARK: - Environment Locking
+    
+    func writeLockFile() {
+        guard let env = activeEnvironment else { return }
+        let sofiaDir = (env.path as NSString).appendingPathComponent(".sofia")
+        let lockPath = (sofiaDir as NSString).appendingPathComponent("environment.lock")
+        let fileManager = FileManager.default
+        
+        // Create .sofia directory if needed
+        if !fileManager.fileExists(atPath: sofiaDir) {
+            try? fileManager.createDirectory(atPath: sofiaDir, withIntermediateDirectories: true)
+        }
+        
+        // Write lock file with environment info
+        let lockContent = """
+        # Sofia Environment Lock
+        # This file indicates the AI assistant should only access files within this environment.
+        
+        locked_path: \(env.path)
+        locked_at: \(ISO8601DateFormatter().string(from: Date()))
+        environment_name: \(env.name)
+        
+        # AI assistants: Do NOT access files outside the locked_path above.
+        """
+        try? lockContent.write(toFile: lockPath, atomically: true, encoding: .utf8)
+        
+        // Also add restriction to .windsurfrules
+        addLockRuleToWindsurfrules(env: env)
+    }
+    
+    func removeLockFile() {
+        guard let env = activeEnvironment else { return }
+        let lockPath = (env.path as NSString).appendingPathComponent(".sofia/environment.lock")
+        try? FileManager.default.removeItem(atPath: lockPath)
+        
+        // Remove lock rule from .windsurfrules
+        removeLockRuleFromWindsurfrules(env: env)
+    }
+    
+    private func addLockRuleToWindsurfrules(env: Environment) {
+        let rulesPath = (env.path as NSString).appendingPathComponent(rulesFileName)
+        let lockRule = """
+        
+        <!-- SOFIA ENVIRONMENT LOCK -->
+        ## Environment Restriction
+        
+        **CRITICAL:** This environment is LOCKED. You must NEVER access files outside:
+        `\(env.path)`
+        
+        Before ANY file operation, verify the path starts with the locked path above.
+        <!-- END SOFIA ENVIRONMENT LOCK -->
+        """
+        
+        var content = (try? String(contentsOfFile: rulesPath, encoding: .utf8)) ?? ""
+        
+        // Don't add if already present
+        if content.contains("<!-- SOFIA ENVIRONMENT LOCK -->") { return }
+        
+        content += lockRule
+        try? content.write(toFile: rulesPath, atomically: true, encoding: .utf8)
+    }
+    
+    private func removeLockRuleFromWindsurfrules(env: Environment) {
+        let rulesPath = (env.path as NSString).appendingPathComponent(rulesFileName)
+        guard var content = try? String(contentsOfFile: rulesPath, encoding: .utf8) else { return }
+        
+        // Remove lock section
+        if let startRange = content.range(of: "\n<!-- SOFIA ENVIRONMENT LOCK -->"),
+           let endRange = content.range(of: "<!-- END SOFIA ENVIRONMENT LOCK -->\n") {
+            content.removeSubrange(startRange.lowerBound..<endRange.upperBound)
+        } else if let startRange = content.range(of: "<!-- SOFIA ENVIRONMENT LOCK -->"),
+                  let endRange = content.range(of: "<!-- END SOFIA ENVIRONMENT LOCK -->") {
+            content.removeSubrange(startRange.lowerBound...endRange.upperBound)
+        }
+        
+        try? content.write(toFile: rulesPath, atomically: true, encoding: .utf8)
+    }
+    
     // MARK: - Writing Organization Mode
     
     func enableWritingMode() {
@@ -218,12 +342,8 @@ class AppState: ObservableObject {
             }
         }
         
-        // Read Sofia writing rules template
-        let templatePath = (envPath as NSString).appendingPathComponent("templates/writing-rules.md")
-        guard let sofiaRules = try? String(contentsOfFile: templatePath, encoding: .utf8) else {
-            print("Could not read writing rules template")
-            return
-        }
+        // Use embedded template
+        let sofiaRules = Self.writingRulesTemplate
         
         var existingContent = ""
         
@@ -351,28 +471,61 @@ class AppState: ObservableObject {
     }
     
     func createDefaultConfig() {
-        // Check for common Sofia locations
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let possiblePaths = [
-            homeDir.appendingPathComponent("Documents/sofia"),
-            homeDir.appendingPathComponent("Documents/writelab"),
-        ]
-        
-        for path in possiblePaths {
-            if FileManager.default.fileExists(atPath: path.appendingPathComponent("corpus").path) {
-                let env = Environment(
-                    name: path.lastPathComponent,
-                    path: path.path,
-                    lastUsed: Date()
-                )
-                environments.append(env)
-            }
-        }
+        // Scan for Sofia environments
+        let discovered = scanForEnvironments()
+        environments.append(contentsOf: discovered)
         
         if !environments.isEmpty {
             activeEnvironment = environments.first
             saveEnvironments()
         }
+    }
+    
+    /// Recursively scan ~/Documents for directories containing corpus/ folder
+    func scanForEnvironments(maxDepth: Int = 4) -> [Environment] {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let documentsDir = homeDir.appendingPathComponent("Documents")
+        var discovered: [Environment] = []
+        let existingPaths = Set(environments.map { $0.path })
+        
+        func scan(directory: URL, depth: Int) {
+            guard depth <= maxDepth else { return }
+            
+            let fileManager = FileManager.default
+            let corpusPath = directory.appendingPathComponent("corpus")
+            
+            // Check if this directory has a corpus folder
+            if fileManager.fileExists(atPath: corpusPath.path) {
+                // Don't add if already in environments
+                if !existingPaths.contains(directory.path) {
+                    let env = Environment(
+                        name: directory.lastPathComponent,
+                        path: directory.path,
+                        lastUsed: Date()
+                    )
+                    discovered.append(env)
+                }
+                return // Don't recurse into Sofia environments
+            }
+            
+            // Recurse into subdirectories
+            guard let contents = try? fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
+            
+            for item in contents {
+                var isDirectory: ObjCBool = false
+                if fileManager.fileExists(atPath: item.path, isDirectory: &isDirectory),
+                   isDirectory.boolValue {
+                    scan(directory: item, depth: depth + 1)
+                }
+            }
+        }
+        
+        scan(directory: documentsDir, depth: 1)
+        return discovered
     }
     
     func saveEnvironments() {
@@ -415,6 +568,11 @@ class AppState: ObservableObject {
     
     func toggleLock() {
         isLocked.toggle()
+        if isLocked {
+            writeLockFile()
+        } else {
+            removeLockFile()
+        }
         saveEnvironments()
     }
     

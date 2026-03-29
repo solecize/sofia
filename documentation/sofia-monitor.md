@@ -62,6 +62,15 @@ Sofia Monitor runs in your menu bar and watches your Sofia environments for chan
 
 Sofia Monitor can track multiple Sofia installations simultaneously.
 
+### Environment Discovery
+
+On first launch, Sofia Monitor automatically scans `~/Documents/` (up to 4 levels deep) for directories containing a `corpus/` folder. Any discovered Sofia environments are added automatically.
+
+To manually scan for new environments:
+1. Click **Preferences...** in the menu
+2. Go to the **Environments** tab
+3. Click **Scan for Environments**
+
 ### Adding an Environment
 
 1. Click **Preferences...** in the menu
@@ -76,6 +85,23 @@ Click an environment name in the menu to switch the active context. The works li
 ### Last Used Tracking
 
 The app remembers which environment you accessed most recently and marks it with "(last used)" in the menu.
+
+### Environment Locking
+
+Lock an environment to prevent accidental cross-repository access:
+
+1. Enable **Lock to this repository** in Preferences → Environments
+2. Sofia Monitor creates `.sofia/environment.lock` in the locked environment
+3. The lock path is also added to `.windsurfrules` to inform AI assistants
+
+When locked:
+- AI assistants are instructed to only access files within the locked path
+- You cannot switch environments or add new ones until unlocked
+- Run `sofia-mx status` to see lock state
+
+**Lock file location:** `.sofia/environment.lock`
+
+This prevents AI assistants from accidentally accessing or modifying files in the wrong repository.
 
 ## Editor Integration
 
