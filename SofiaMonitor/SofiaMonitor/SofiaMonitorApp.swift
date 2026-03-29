@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 // =============================================================================
 // COMMAND-LINE COMPILATION NOTES
@@ -98,6 +99,33 @@ class AppState: ObservableObject {
     @AppStorage("environmentEditor") var environmentEditor: String = "windsurf"
     @AppStorage("documentEditor") var documentEditor: String = "system"
     
+    // Writing Organization Mode
+    @AppStorage("writingModeEnabled") var writingModeEnabled: Bool = false
+    
+    // Launch at Login
+    var launchAtLogin: Bool {
+        get {
+            if #available(macOS 13.0, *) {
+                return SMAppService.mainApp.status == .enabled
+            }
+            return false
+        }
+        set {
+            objectWillChange.send()
+            if #available(macOS 13.0, *) {
+                do {
+                    if newValue {
+                        try SMAppService.mainApp.register()
+                    } else {
+                        try SMAppService.mainApp.unregister()
+                    }
+                } catch {
+                    print("Failed to \(newValue ? "enable" : "disable") launch at login: \(error)")
+                }
+            }
+        }
+    }
+    
     private var fileWatcher: FileWatcher?
     private var gitService: GitService?
     
@@ -163,6 +191,109 @@ class AppState: ObservableObject {
     
     static var osDefaultDirectoryApp: String {
         "Finder"
+    }
+    
+    // Rules file name based on environment editor
+    var rulesFileName: String {
+        switch environmentEditor {
+        case "cursor": return ".cursorrules"
+        case "vscode": return ".github/copilot-instructions.md"
+        default: return ".windsurfrules"
+        }
+    }
+    
+    // MARK: - Writing Organization Mode
+    
+    func enableWritingMode() {
+        guard let env = activeEnvironment else { return }
+        let envPath = env.path
+        let rulesPath = (envPath as NSString).appendingPathComponent(rulesFileName)
+        let fileManager = FileManager.default
+        
+        // For VS Code, ensure .github directory exists
+        if environmentEditor == "vscode" {
+            let githubDir = (envPath as NSString).appendingPathComponent(".github")
+            if !fileManager.fileExists(atPath: githubDir) {
+                try? fileManager.createDirectory(atPath: githubDir, withIntermediateDirectories: true)
+            }
+        }
+        
+        // Read Sofia writing rules template
+        let templatePath = (envPath as NSString).appendingPathComponent("templates/writing-rules.md")
+        guard let sofiaRules = try? String(contentsOfFile: templatePath, encoding: .utf8) else {
+            print("Could not read writing rules template")
+            return
+        }
+        
+        var existingContent = ""
+        
+        // Check if rules file exists and backup
+        if fileManager.fileExists(atPath: rulesPath) {
+            if let content = try? String(contentsOfFile: rulesPath, encoding: .utf8) {
+                existingContent = content
+                
+                // Create dated backup
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyyMMdd"
+                let dateStr = dateFormatter.string(from: Date())
+                let backupPath = rulesPath + ".backup-" + dateStr
+                
+                // Only backup if not already backed up today
+                if !fileManager.fileExists(atPath: backupPath) {
+                    try? fileManager.copyItem(atPath: rulesPath, toPath: backupPath)
+                }
+            }
+        }
+        
+        // Build merged content with markers
+        var mergedContent = "<!-- SOFIA WRITING MODE: ACTIVE -->\n"
+        mergedContent += sofiaRules
+        mergedContent += "\n<!-- END SOFIA WRITING MODE -->\n"
+        
+        if !existingContent.isEmpty && !existingContent.contains("<!-- SOFIA WRITING MODE") {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateStr = dateFormatter.string(from: Date())
+            mergedContent += "\n<!-- USER RULES (preserved from \(dateStr)) -->\n"
+            mergedContent += existingContent
+            mergedContent += "\n<!-- END USER RULES -->\n"
+        } else if existingContent.contains("<!-- USER RULES") {
+            // Already has user rules section, preserve it
+            if let userRulesRange = existingContent.range(of: "<!-- USER RULES[\\s\\S]*<!-- END USER RULES -->", options: .regularExpression) {
+                mergedContent += "\n" + String(existingContent[userRulesRange])
+            }
+        }
+        
+        try? mergedContent.write(toFile: rulesPath, atomically: true, encoding: .utf8)
+    }
+    
+    func disableWritingMode() {
+        guard let env = activeEnvironment else { return }
+        let rulesPath = (env.path as NSString).appendingPathComponent(rulesFileName)
+        let fileManager = FileManager.default
+        
+        guard fileManager.fileExists(atPath: rulesPath),
+              let content = try? String(contentsOfFile: rulesPath, encoding: .utf8) else {
+            return
+        }
+        
+        // Extract user rules if present
+        var restoredContent = ""
+        
+        if let userStart = content.range(of: "<!-- USER RULES"),
+           let userEnd = content.range(of: "<!-- END USER RULES -->") {
+            // Get content between markers
+            let afterStart = content.index(after: content.range(of: " -->\n", range: userStart.upperBound..<content.endIndex)?.upperBound ?? userStart.upperBound)
+            restoredContent = String(content[afterStart..<userEnd.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if restoredContent.isEmpty {
+            // No user rules to restore, just delete the file
+            try? fileManager.removeItem(atPath: rulesPath)
+        } else {
+            // Write restored user rules
+            try? restoredContent.write(toFile: rulesPath, atomically: true, encoding: .utf8)
+        }
     }
     
     init() {
