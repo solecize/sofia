@@ -181,7 +181,17 @@ When you save a file in `corpus/works/`, Sofia Monitor:
 1. Detects the change via FSEvents
 2. Waits 2 seconds for additional changes (debounce)
 3. Commits with message: `auto: project file @ HH:MM:SS`
-4. Adds to changelog for review
+4. Regenerates corpus dashboard via `sofia-dashboard`
+5. Refreshes work-level sections via `sofia-refresh <work>`
+6. Adds to changelog for review
+
+### Work-Level Refresh
+
+After each file change, `sofia-refresh` updates marker-fenced sections in:
+- **`notes/notebook.md`** — Navigation, stats, reference index
+- **`manuscript.md`** — Table of contents
+
+See `documentation/sofia-refresh.md` for details on custom sections.
 
 ### Offline Changes
 

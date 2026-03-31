@@ -100,6 +100,7 @@ Regenerated on file changes by SofiaMonitor.
 | `sofia-work` | Manuscript management (init, ingest, status, checkin, checkout) |
 | `sofia-tutorial` | Interactive tutorial for new users |
 | `sofia-dashboard` | Generate `corpus/index.md` dashboard |
+| `sofia-refresh` | Regenerate work-level notebook.md and manuscript.md sections |
 | `sofia-wiki` | Entity extraction and reference management |
 | `sofia-mx` | MX introspection commands |
 
@@ -158,10 +159,12 @@ cd SofiaMonitor
 2. On change, 2-second debounce
 3. Auto-commit with message: `auto: workname filename @ timestamp`
 4. Regenerate dashboard via `sofia-dashboard`
+5. Regenerate work-level sections via `sofia-refresh <work>`
 
 ### Menu Bar Actions
 
 - **Open Dashboard** → Opens `corpus/index.md` (uses document editor)
+- **Open Notebook** → Opens active work's `notes/notebook.md` (uses document editor)
 - **Start Tutorial...** → Launches `sofia-tutorial` in Terminal
 - **Open in [Editor]** → Opens environment/work in selected editor
 

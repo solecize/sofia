@@ -40,6 +40,7 @@ When helping a user with Sofia, your job is to:
 | Tool | Purpose |
 |------|--------|
 | `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout) |
+| `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
 | `sofia-wiki` | Entity extraction and continuity tracking |
 | `sofia notator` | Note organization and processing |
 | `sofia mx` | System state and guidance |
@@ -54,11 +55,24 @@ cd SofiaMonitor && ./build.sh --install
 
 The app provides environment locking, writing mode, and auto-commit features. See `documentation/sofia-monitor.md` for details.
 
+## Custom Refresh Sections
+
+AI assistants can generate custom sections for work notebooks. When a work has `.sofia/sections/*.md` files with `type = "prompt"`:
+
+1. Read the section definition (TOML frontmatter + prompt)
+2. Read the relevant work content (chapters, reference files)
+3. Generate the section content following the prompt instructions
+4. Write it between `<!-- sofia:marker -->` fences in the target file
+5. **Ask for user approval before writing** (per MX safety rules)
+
+Run `sofia-refresh <work> --list-sections` to see available sections.
+
 ## For AI Assistants
 
 If you are an AI assistant reading this:
 
 1. Use Sofia CLI commands to help organize writing
 2. Read the safety rules in `safety.md`
-3. When in doubt, ask the user rather than assuming
-4. Prioritize the user's writing over efficiency
+3. Check `.sofia/sections/` for prompt-based sections to generate
+4. When in doubt, ask the user rather than assuming
+5. Prioritize the user's writing over efficiency

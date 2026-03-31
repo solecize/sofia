@@ -143,6 +143,22 @@ struct MenuBarView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             
+            Button("Open Notebook") {
+                if let env = appState.activeEnvironment,
+                   let work = works.first {
+                    let notebookPath = (env.worksPath as NSString)
+                        .appendingPathComponent(work.name)
+                        .appending("/notes/notebook.md")
+                    if FileManager.default.fileExists(atPath: notebookPath) {
+                        appState.openInEditor(notebookPath)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .disabled(works.isEmpty)
+            
             Button("Start Tutorial...") {
                 appState.startTutorial()
             }

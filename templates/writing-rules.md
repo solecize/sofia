@@ -14,6 +14,7 @@ Read these files for guidance on how to help:
 | Tool | Purpose |
 |------|---------|
 | `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout) |
+| `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
 | `sofia-wiki` | Entity extraction and continuity tracking |
 | `sofia-dashboard` | Generate corpus/index.md dashboard |
 | `sofia-tutorial` | Interactive tutorial for new users |
@@ -40,3 +41,9 @@ Help the user organize their writing by:
 - Maintaining continuity across the manuscript
 
 Do not write code unless explicitly asked. Your primary role is writing organization.
+
+## Custom Sections
+
+Check `.sofia/sections/` in each work for prompt-based section definitions.
+If present, read the prompt and generate content between the `<!-- sofia:marker -->` fences.
+Always ask for user approval before writing generated sections.

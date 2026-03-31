@@ -220,6 +220,7 @@ Read these files for guidance on how to help:
 | Tool | Purpose |
 |------|---------|
 | `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout) |
+| `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
 | `sofia-wiki` | Entity extraction and continuity tracking |
 | `sofia-dashboard` | Generate corpus/index.md dashboard |
 | `sofia-tutorial` | Interactive tutorial for new users |
@@ -246,6 +247,12 @@ Help the user organize their writing by:
 - Maintaining continuity across the manuscript
 
 Do not write code unless explicitly asked. Your primary role is writing organization.
+
+## Custom Sections
+
+Check `.sofia/sections/` in each work for prompt-based section definitions.
+If present, read the prompt and generate content between the `<!-- sofia:marker -->` fences.
+Always ask for user approval before writing generated sections.
 """
     
     // MARK: - Environment Locking
@@ -435,6 +442,10 @@ Do not write code unless explicitly asked. Your primary role is writing organiza
             if changedPath.hasSuffix(".md") {
                 Task { @MainActor in
                     self.regenerateDashboard()
+                    // Extract work name from changed path and refresh
+                    if let workName = self.workName(from: changedPath) {
+                        self.refreshWork(workName)
+                    }
                 }
             }
         }
@@ -595,6 +606,39 @@ Do not write code unless explicitly asked. Your primary role is writing organiza
             try process.run()
         } catch {
             print("Error running dashboard script: \(error)")
+        }
+    }
+    
+    /// Extract work name from a changed file path (e.g., .../corpus/works/my-novel/chapters/01.md → "my-novel")
+    func workName(from changedPath: String) -> String? {
+        guard let env = activeEnvironment else { return nil }
+        let worksPrefix = (env.path as NSString).appendingPathComponent("corpus/works/")
+        guard changedPath.hasPrefix(worksPrefix) else { return nil }
+        let relative = String(changedPath.dropFirst(worksPrefix.count))
+        return relative.components(separatedBy: "/").first
+    }
+    
+    /// Run sofia-refresh for a specific work
+    func refreshWork(_ workName: String) {
+        guard let envPath = activeEnvironment?.path else { return }
+        
+        let refreshScript = URL(fileURLWithPath: envPath)
+            .appendingPathComponent("scripts")
+            .appendingPathComponent("sofia-refresh")
+        
+        guard FileManager.default.fileExists(atPath: refreshScript.path) else {
+            return
+        }
+        
+        let process = Process()
+        process.executableURL = refreshScript
+        process.arguments = [workName]
+        process.currentDirectoryURL = URL(fileURLWithPath: envPath)
+        
+        do {
+            try process.run()
+        } catch {
+            print("Error running refresh script: \(error)")
         }
     }
     

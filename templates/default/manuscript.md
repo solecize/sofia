@@ -1,8 +1,10 @@
 # {{PROJECT_TITLE}}
 
+<!-- sofia:toc -->
 ## Table of Contents
 
 *No chapters yet. Use `sofia-work ingest` to import content.*
+<!-- /sofia:toc -->
 
 ---
 
