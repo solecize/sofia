@@ -2,6 +2,18 @@
 
 Working hub for this project.
 
+<!-- sofia:navigation -->
+## Navigation
+
+| Resource | Description |
+|----------|-------------|
+| [Manuscript](../manuscript.md) | Table of contents and chapter links |
+| [Chapters](../chapters/) | Chapter files |
+| [Reference](../reference/) | World-building wiki |
+| [Notes](.) | Working notes |
+<!-- /sofia:navigation -->
+
+<!-- sofia:stats -->
 ## Quick Stats
 
 | Metric | Value |
@@ -9,18 +21,14 @@ Working hub for this project.
 | Chapters | 0 |
 | Words | 0 |
 | Phase | draft |
-
-## Recent Activity
-
-*No activity yet.*
-
-## Quick Links
-
-- [Manuscript](../manuscript.md)
-- [Orphans](../orphans.md)
-- [Chapters](../chapters/)
-- [Reference](../reference/)
+<!-- /sofia:stats -->
 
 ## Notes
 
 *Add working notes here.*
+
+<!-- sofia:reference-index -->
+## Reference Index
+
+*No reference entries yet.*
+<!-- /sofia:reference-index -->

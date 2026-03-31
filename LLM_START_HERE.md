@@ -39,6 +39,7 @@ Do not improvise raw commands. Use Sofia's tools:
 | Tool | Purpose |
 |------|--------|
 | `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout, watch) |
+| `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
 | `sofia-wiki` | Entity extraction and continuity tracking |
 | `sofia notator` | Note organization and processing |
 | `sofia mx state` | Output current system state |

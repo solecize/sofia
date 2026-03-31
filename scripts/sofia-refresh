@@ -1,0 +1,607 @@
+#!/bin/bash
+# sofia-refresh: Regenerate auto-generated sections in work-level documents
+# Usage: sofia-refresh <work-name> [options]
+#        sofia-refresh --all [options]
+#
+# Refreshes marker-fenced sections in notebook.md and manuscript.md
+# while preserving author-written content outside markers.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+WORKS_DIR="$SCRIPT_DIR/corpus/works"
+LIBRARY_SECTIONS="$SCRIPT_DIR/library/refresh/sections"
+
+# Flags
+DRY_RUN="false"
+JSON_OUTPUT="false"
+LIST_SECTIONS="false"
+ALL_WORKS="false"
+WORK_NAME=""
+
+# ============================================================================
+# Usage
+# ============================================================================
+
+show_usage() {
+    echo "Usage: sofia-refresh <work-name> [options]"
+    echo "       sofia-refresh --all [options]"
+    echo ""
+    echo "Regenerate auto-generated sections in notebook.md and manuscript.md."
+    echo ""
+    echo "Options:"
+    echo "  --all              Refresh all works"
+    echo "  --dry-run          Show what would change without writing"
+    echo "  --json             Output JSON instead of writing files"
+    echo "  --list-sections    List all sections (built-in + custom)"
+    echo "  -h, --help         Show this help"
+    echo ""
+    echo "Built-in mechanical sections:"
+    echo "  navigation       Links to manuscript, chapters, reference, notes"
+    echo "  stats            Chapter count, word count, phase"
+    echo "  reference-index  Scans reference/ directories for entries"
+    echo "  toc              Table of contents from chapters/"
+    echo ""
+    echo "Custom sections can be added per-work in .sofia/sections/"
+}
+
+# ============================================================================
+# Parse Arguments
+# ============================================================================
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --all)
+            ALL_WORKS="true"
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        --json)
+            JSON_OUTPUT="true"
+            shift
+            ;;
+        --list-sections)
+            LIST_SECTIONS="true"
+            shift
+            ;;
+        -h|--help|help)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+        *)
+            WORK_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# ============================================================================
+# Shared Helpers (same as sofia-dashboard)
+# ============================================================================
+
+get_word_count() {
+    local work_dir="$1"
+    local chapters_dir="$work_dir/chapters"
+    if [ -d "$chapters_dir" ]; then
+        find "$chapters_dir" -name "*.md" -exec cat {} + 2>/dev/null | wc -w | tr -d ' '
+    else
+        echo "0"
+    fi
+}
+
+get_chapter_count() {
+    local work_dir="$1"
+    local chapters_dir="$work_dir/chapters"
+    if [ -d "$chapters_dir" ]; then
+        find "$chapters_dir" -name "*.md" 2>/dev/null | wc -l | tr -d ' '
+    else
+        echo "0"
+    fi
+}
+
+get_phase() {
+    local work_dir="$1"
+    local profile="$work_dir/.sofia/profile.md"
+    if [ -f "$profile" ]; then
+        grep -o 'current_phase *= *"[^"]*"' "$profile" 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' || echo "unknown"
+    else
+        echo "unknown"
+    fi
+}
+
+format_word_count() {
+    printf "%'d" "$1" 2>/dev/null || echo "$1"
+}
+
+# ============================================================================
+# Marker Parsing
+# ============================================================================
+
+# Replace content between <!-- sofia:MARKER --> and <!-- /sofia:MARKER -->
+# Usage: replace_marker_section <file> <marker> <new_content>
+# Returns 0 if marker found and replaced, 1 if marker not found
+replace_marker_section() {
+    local file="$1"
+    local marker="$2"
+    local new_content="$3"
+    local open_tag="<!-- sofia:${marker} -->"
+    local close_tag="<!-- /sofia:${marker} -->"
+
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+
+    if ! grep -q "$open_tag" "$file" 2>/dev/null; then
+        return 1
+    fi
+
+    # Write new content to a temp file for splicing
+    local content_file
+    content_file=$(mktemp)
+    printf '%s\n' "$open_tag" > "$content_file"
+    printf '%s\n' "$new_content" >> "$content_file"
+    printf '%s' "$close_tag" >> "$content_file"
+
+    # Use awk to replace: print lines outside markers, splice content file at open tag
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk -v otag="$open_tag" -v ctag="$close_tag" -v cfile="$content_file" '
+    BEGIN { inside=0; printed=0 }
+    $0 == otag {
+        inside=1
+        if (!printed) {
+            while ((getline line < cfile) > 0) print line
+            printed=1
+        }
+        next
+    }
+    $0 == ctag { inside=0; next }
+    !inside { print }
+    ' "$file" > "$tmpfile"
+
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "  Would update: <!-- sofia:${marker} --> in $(basename "$file")"
+        rm -f "$tmpfile" "$content_file"
+    else
+        mv "$tmpfile" "$file"
+        rm -f "$content_file"
+    fi
+
+    return 0
+}
+
+# ============================================================================
+# Section: Navigation (notebook.md)
+# ============================================================================
+
+generate_navigation() {
+    local work_dir="$1"
+    local work_name
+    work_name=$(basename "$work_dir")
+    local chapters_count
+    chapters_count=$(get_chapter_count "$work_dir")
+
+    local content="## Navigation\n\n"
+    content+="| Resource | Description |\n"
+    content+="|----------|-------------|\n"
+
+    if [ -f "$work_dir/manuscript.md" ]; then
+        content+="| [Manuscript](../manuscript.md) | Table of contents and chapter links |\n"
+    fi
+
+    if [ -d "$work_dir/chapters" ]; then
+        content+="| [Chapters](../chapters/) | ${chapters_count} chapter files |\n"
+    fi
+
+    if [ -d "$work_dir/reference" ]; then
+        local ref_count
+        ref_count=$(find "$work_dir/reference" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        content+="| [Reference](../reference/) | ${ref_count} reference entries |\n"
+    fi
+
+    if [ -d "$work_dir/notes" ]; then
+        content+="| [Notes](.) | Working notes |\n"
+    fi
+
+    if [ -f "$work_dir/notes/notebook.md" ]; then
+        # Check for additional note files
+        local note_files
+        note_files=$(find "$work_dir/notes" -name "*.md" ! -name "notebook.md" 2>/dev/null)
+        if [ -n "$note_files" ]; then
+            local note_count
+            note_count=$(echo "$note_files" | wc -l | tr -d ' ')
+            content+="| [Other Notes](.) | ${note_count} additional note files |\n"
+        fi
+    fi
+
+    if [ -f "$work_dir/orphans.md" ]; then
+        content+="| [Orphans](../orphans.md) | Unplaced prose |\n"
+    fi
+
+    printf '%b' "$content"
+}
+
+# ============================================================================
+# Section: Quick Stats (notebook.md)
+# ============================================================================
+
+generate_stats() {
+    local work_dir="$1"
+    local chapters
+    chapters=$(get_chapter_count "$work_dir")
+    local words
+    words=$(get_word_count "$work_dir")
+    local words_fmt
+    words_fmt=$(format_word_count "$words")
+    local phase
+    phase=$(get_phase "$work_dir")
+
+    local content="## Quick Stats\n\n"
+    content+="| Metric | Value |\n"
+    content+="|--------|-------|\n"
+    content+="| Chapters | ${chapters} |\n"
+    content+="| Words | ${words_fmt} |\n"
+    content+="| Phase | ${phase} |\n"
+
+    printf '%b' "$content"
+}
+
+# ============================================================================
+# Section: Reference Index (notebook.md)
+# ============================================================================
+
+generate_reference_index() {
+    local work_dir="$1"
+    local ref_dir="$work_dir/reference"
+
+    if [ ! -d "$ref_dir" ]; then
+        printf '## Reference Index\n\n*No reference directory found.*\n'
+        return
+    fi
+
+    local content="## Reference Index\n\n"
+    local has_entries="false"
+
+    # Scan each subdirectory (people, places, objects, themes, events)
+    for category_dir in "$ref_dir"/*/; do
+        [ -d "$category_dir" ] || continue
+        local category
+        category=$(basename "$category_dir")
+
+        # Skip hidden directories
+        [[ "$category" == .* ]] && continue
+
+        # Capitalize category name (macOS compatible)
+        local category_title
+        category_title=$(echo "$category" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+
+        local entries=""
+        local entry_count=0
+
+        for entry_file in "$category_dir"*.md; do
+            [ -f "$entry_file" ] || continue
+            local filename
+            filename=$(basename "$entry_file" .md)
+
+            # Extract title from first line (# Title) or convert filename
+            local title
+            title=$(head -1 "$entry_file" 2>/dev/null | sed 's/^# *//')
+            if [ -z "$title" ] || [ "$title" = "$(head -1 "$entry_file")" ]; then
+                # Convert kebab-case filename to title case
+                title=$(echo "$filename" | sed 's/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+            fi
+
+            local rel_path="../reference/${category}/${filename}.md"
+            entries+="- [${title}](${rel_path})\n"
+            ((entry_count++))
+        done
+
+        if [ $entry_count -gt 0 ]; then
+            content+="### ${category_title}\n${entries}\n"
+            has_entries="true"
+        fi
+    done
+
+    if [ "$has_entries" = "false" ]; then
+        content+="*No reference entries yet.*\n"
+    fi
+
+    printf '%b' "$content"
+}
+
+# ============================================================================
+# Section: Table of Contents (manuscript.md)
+# ============================================================================
+
+generate_toc() {
+    local work_dir="$1"
+    local chapters_dir="$work_dir/chapters"
+
+    if [ ! -d "$chapters_dir" ]; then
+        printf '## Table of Contents\n\n*No chapters yet. Use `sofia-work ingest` to import content.*\n'
+        return
+    fi
+
+    local content="## Table of Contents\n\n"
+    local num=0
+
+    # Sort chapter files naturally
+    for chapter_file in $(find "$chapters_dir" -maxdepth 1 -name "*.md" -type f | sort); do
+        local filename
+        filename=$(basename "$chapter_file" .md)
+
+        # Extract title from first line
+        local title
+        title=$(head -1 "$chapter_file" 2>/dev/null | sed 's/^# *//')
+        if [ -z "$title" ] || [ "$title" = "$(head -1 "$chapter_file")" ]; then
+            title=$(echo "$filename" | sed 's/^[0-9]*-//; s/-/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1')
+        fi
+
+        # Use the numbering from filename if present, otherwise sequential
+        local prefix
+        prefix=$(echo "$filename" | grep -o '^[0-9]*' || true)
+        if [ -n "$prefix" ]; then
+            # Remove leading zeros for display but keep original for link
+            local display_num
+            display_num=$(echo "$prefix" | sed 's/^0*//' || echo "0")
+            content+="${display_num}. [${title}](chapters/${filename}.md)\n"
+        else
+            content+="${num}. [${title}](chapters/${filename}.md)\n"
+        fi
+        ((num++))
+    done
+
+    if [ $num -eq 0 ]; then
+        content+="*No chapters yet. Use \`sofia-work ingest\` to import content.*\n"
+    fi
+
+    printf '%b' "$content"
+}
+
+# ============================================================================
+# List Sections
+# ============================================================================
+
+list_sections() {
+    local work_dir="$1"
+
+    echo "Built-in mechanical sections:"
+    echo "  navigation       → notebook.md  (links to manuscript, chapters, reference)"
+    echo "  stats            → notebook.md  (chapter count, word count, phase)"
+    echo "  reference-index  → notebook.md  (reference directory entries)"
+    echo "  toc              → manuscript.md (table of contents from chapters/)"
+    echo ""
+
+    # Check for custom sections
+    local custom_dir="$work_dir/.sofia/sections"
+    if [ -d "$custom_dir" ]; then
+        local custom_count
+        custom_count=$(find "$custom_dir" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$custom_count" -gt 0 ]; then
+            echo "Custom sections (.sofia/sections/):"
+            for section_file in "$custom_dir"/*.md; do
+                [ -f "$section_file" ] || continue
+                local sid smarker starget stype sdesc
+                sid=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^id *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                smarker=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^marker *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                starget=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^target *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                stype=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^type *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                sdesc=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^description *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                echo "  ${smarker:-$(basename "$section_file" .md)}  → ${starget:-notebook}.md  [${stype:-prompt}] ${sdesc}"
+            done
+        else
+            echo "No custom sections found."
+        fi
+    else
+        echo "No custom sections directory (.sofia/sections/)."
+    fi
+
+    # Check for library-level sections
+    if [ -d "$LIBRARY_SECTIONS" ]; then
+        local lib_custom
+        lib_custom=$(find "$LIBRARY_SECTIONS" -name "*.md" ! -name "navigation.md" ! -name "stats.md" ! -name "reference-index.md" ! -name "toc.md" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$lib_custom" -gt 0 ]; then
+            echo ""
+            echo "Library sections (library/refresh/sections/):"
+            for section_file in "$LIBRARY_SECTIONS"/*.md; do
+                [ -f "$section_file" ] || continue
+                local fname
+                fname=$(basename "$section_file" .md)
+                # Skip built-in
+                case "$fname" in navigation|stats|reference-index|toc) continue ;; esac
+                local sdesc
+                sdesc=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^description *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+                echo "  ${fname}  ${sdesc}"
+            done
+        fi
+    fi
+}
+
+# ============================================================================
+# Refresh a Single Work
+# ============================================================================
+
+refresh_work() {
+    local work_dir="$1"
+    local work_name
+    work_name=$(basename "$work_dir")
+
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "Dry run: $work_name"
+    else
+        echo "Refreshing: $work_name"
+    fi
+
+    local notebook="$work_dir/notes/notebook.md"
+    local manuscript="$work_dir/manuscript.md"
+    local updated=0
+
+    # --- Notebook sections ---
+    if [ -f "$notebook" ]; then
+        # Navigation
+        local nav_content
+        nav_content=$(generate_navigation "$work_dir")
+        if replace_marker_section "$notebook" "navigation" "$nav_content"; then
+            ((updated++))
+        fi
+
+        # Stats
+        local stats_content
+        stats_content=$(generate_stats "$work_dir")
+        if replace_marker_section "$notebook" "stats" "$stats_content"; then
+            ((updated++))
+        fi
+
+        # Reference Index
+        local ref_content
+        ref_content=$(generate_reference_index "$work_dir")
+        if replace_marker_section "$notebook" "reference-index" "$ref_content"; then
+            ((updated++))
+        fi
+    fi
+
+    # --- Manuscript sections ---
+    if [ -f "$manuscript" ]; then
+        local toc_content
+        toc_content=$(generate_toc "$work_dir")
+        if replace_marker_section "$manuscript" "toc" "$toc_content"; then
+            ((updated++))
+        fi
+    fi
+
+    if [ "$DRY_RUN" = "true" ]; then
+        echo "  ${updated} section(s) would be updated"
+    else
+        echo "  ${updated} section(s) updated"
+    fi
+
+    # List prompt-based sections if any
+    local custom_dir="$work_dir/.sofia/sections"
+    if [ -d "$custom_dir" ]; then
+        local prompt_sections=0
+        for section_file in "$custom_dir"/*.md; do
+            [ -f "$section_file" ] || continue
+            local stype
+            stype=$(awk '/^\+\+\+$/{ if(f) exit; f=1; next } f && /^type *=/ { gsub(/.*= *"|"/, ""); print }' "$section_file")
+            if [ "$stype" = "prompt" ]; then
+                ((prompt_sections++))
+            fi
+        done
+        if [ $prompt_sections -gt 0 ]; then
+            echo "  ${prompt_sections} prompt-based section(s) available for AI assistant"
+        fi
+    fi
+}
+
+# ============================================================================
+# JSON Output
+# ============================================================================
+
+refresh_work_json() {
+    local work_dir="$1"
+    local work_name
+    work_name=$(basename "$work_dir")
+
+    local chapters
+    chapters=$(get_chapter_count "$work_dir")
+    local words
+    words=$(get_word_count "$work_dir")
+    local phase
+    phase=$(get_phase "$work_dir")
+
+    echo "  {"
+    echo "    \"name\": \"$work_name\","
+    echo "    \"chapters\": $chapters,"
+    echo "    \"words\": $words,"
+    echo "    \"phase\": \"$phase\","
+
+    # Count custom sections
+    local custom_count=0
+    local custom_dir="$work_dir/.sofia/sections"
+    if [ -d "$custom_dir" ]; then
+        custom_count=$(find "$custom_dir" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+    echo "    \"customSections\": $custom_count"
+    echo -n "  }"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+if [ "$LIST_SECTIONS" = "true" ]; then
+    if [ -n "$WORK_NAME" ]; then
+        work_dir="$WORKS_DIR/$WORK_NAME"
+        if [ ! -d "$work_dir" ]; then
+            echo "Error: Work not found: $WORK_NAME"
+            exit 1
+        fi
+        list_sections "$work_dir"
+    else
+        # List for first available work or generic
+        echo "Specify a work name to see custom sections, or showing built-in only:"
+        echo ""
+        list_sections "/dev/null"
+    fi
+    exit 0
+fi
+
+if [ "$ALL_WORKS" = "false" ] && [ -z "$WORK_NAME" ]; then
+    show_usage
+    exit 1
+fi
+
+if [ "$JSON_OUTPUT" = "true" ]; then
+    echo "{"
+    echo "  \"generated\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
+    echo "  \"works\": ["
+    local first=true
+fi
+
+if [ "$ALL_WORKS" = "true" ]; then
+    for work_dir in "$WORKS_DIR"/*/; do
+        [ -d "$work_dir" ] || continue
+        local wname
+        wname=$(basename "$work_dir")
+        [[ "$wname" == .* ]] && continue
+        [[ "$wname" == template-* ]] && continue
+
+        if [ "$JSON_OUTPUT" = "true" ]; then
+            [ "$first" = "true" ] || echo ","
+            first=false
+            refresh_work_json "$work_dir"
+        else
+            refresh_work "$work_dir"
+        fi
+    done
+else
+    work_dir="$WORKS_DIR/$WORK_NAME"
+    if [ ! -d "$work_dir" ]; then
+        echo "Error: Work not found: $WORK_NAME"
+        echo "Available works:"
+        for d in "$WORKS_DIR"/*/; do
+            [ -d "$d" ] && echo "  $(basename "$d")"
+        done
+        exit 1
+    fi
+
+    if [ "$JSON_OUTPUT" = "true" ]; then
+        refresh_work_json "$work_dir"
+    else
+        refresh_work "$work_dir"
+    fi
+fi
+
+if [ "$JSON_OUTPUT" = "true" ]; then
+    echo ""
+    echo "  ]"
+    echo "}"
+fi
