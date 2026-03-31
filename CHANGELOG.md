@@ -6,6 +6,9 @@ All notable changes to Sofia are documented in this file.
 
 ## [2026-03-31] sofia-refresh: Work-Level Auto-Refresh
 
+### Fixed
+- **Dashboard stub**: SofiaMonitor now creates a placeholder `corpus/index.md` if missing, preventing "file not found" errors on fresh environments
+
 ### Added
 - **`sofia-refresh` script**: Regenerates marker-fenced sections in `notebook.md` and `manuscript.md`
   - Built-in mechanical sections: navigation, stats, reference-index, table of contents
