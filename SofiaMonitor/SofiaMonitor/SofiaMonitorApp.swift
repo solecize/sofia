@@ -594,19 +594,53 @@ Always ask for user approval before writing generated sections.
             .appendingPathComponent("scripts")
             .appendingPathComponent("sofia-dashboard")
         
-        guard FileManager.default.fileExists(atPath: dashboardScript.path) else {
-            return
+        // If script exists, run it (creates/updates corpus/index.md)
+        if FileManager.default.fileExists(atPath: dashboardScript.path) {
+            let process = Process()
+            process.executableURL = dashboardScript
+            process.currentDirectoryURL = URL(fileURLWithPath: envPath)
+            
+            do {
+                try process.run()
+            } catch {
+                print("Error running dashboard script: \(error)")
+            }
         }
         
-        let process = Process()
-        process.executableURL = dashboardScript
-        process.currentDirectoryURL = URL(fileURLWithPath: envPath)
+        // Ensure corpus/index.md exists (stub if script missing or corpus empty)
+        ensureDashboardExists(envPath: envPath)
+    }
+    
+    private func ensureDashboardExists(envPath: String) {
+        let corpusDir = (envPath as NSString).appendingPathComponent("corpus")
+        let dashboardFile = (corpusDir as NSString).appendingPathComponent("index.md")
         
-        do {
-            try process.run()
-        } catch {
-            print("Error running dashboard script: \(error)")
+        guard !FileManager.default.fileExists(atPath: dashboardFile) else { return }
+        
+        // Create corpus directory if needed
+        if !FileManager.default.fileExists(atPath: corpusDir) {
+            try? FileManager.default.createDirectory(atPath: corpusDir, withIntermediateDirectories: true)
         }
+        
+        let stub = """
+# Author Dashboard
+
+*No works yet. Use `sofia-work init` to create your first project.*
+
+## Works
+
+| Work | Words | Chapters | Phase | Last Edit |
+|------|-------|----------|-------|-----------|
+
+## Quick Links
+
+- [Incoming Notes](incoming/) — Raw notes waiting to be processed
+
+---
+
+*Refresh with: `sofia-dashboard`*
+"""
+        try? stub.write(toFile: dashboardFile, atomically: true, encoding: .utf8)
     }
     
     /// Extract work name from a changed file path (e.g., .../corpus/works/my-novel/chapters/01.md → "my-novel")
