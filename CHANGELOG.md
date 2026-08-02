@@ -4,6 +4,25 @@ All notable changes to Sofia are documented in this file.
 
 ---
 
+## [2026-08-02] Two-environment model + composer restore
+
+### Security
+- **History purge**: Removed ChatGPT export trees (`corpus/incoming/d90dd*`) and tracked `SofiaMonitor/.build` artifacts from `public`/`main` history; force-pushed rewritten branches
+
+### Added
+- **`sofia` dispatcher** and **`sofia-compose`** (Python): restores `sofia notator list|run` with switch includes, exclusive groups, vars, Echo JSON, and session manifests
+- **`SOFIA_ROOT`**: scripts operate on a writing environment while tooling/library stay in the public checkout (`scripts/lib/sofia-root.sh`)
+- **Demo works** under `corpus/works/`: christmas-carol, frankenstein, origin-of-species, wizard-of-oz (public domain)
+
+### Fixed
+- `sofia-watch` / `sofia-wiki` / `sofia-work` paths updated from deprecated `notes/*` layout to `corpus/works/.../reference`
+- README install/status no longer claim missing `BUILDING.md` or a complete C-based MVP
+
+### Changed
+- Private writing belongs in a separate environment (e.g. `~/Documents/writing`); do not push manuscripts to this repository
+
+---
+
 ## [2026-03-31] sofia-refresh: Work-Level Auto-Refresh
 
 ### Fixed

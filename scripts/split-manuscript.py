@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 
 def main():
-    manuscript_path = Path('notes/works/prince-of-loves/chapters/01-manuscript-draft.md')
-    chapters_dir = Path('notes/works/prince-of-loves/chapters')
+    manuscript_path = Path('corpus/works/prince-of-loves/chapters/01-manuscript-draft.md')
+    chapters_dir = Path('corpus/works/prince-of-loves/chapters')
     
     manuscript = manuscript_path.read_text()
     lines = manuscript.split('\n')
@@ -23,7 +23,7 @@ def main():
         notes_lines = lines[notes_start:]
         
         # Write notes to separate file
-        notes_path = Path('notes/works/prince-of-loves/reference-notes.md')
+        notes_path = Path('corpus/works/prince-of-loves/reference-notes.md')
         notes_path.write_text('\n'.join(notes_lines))
         print(f"Wrote notes ({len(notes_lines)} lines) to {notes_path}")
     else:

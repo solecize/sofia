@@ -9,4 +9,5 @@ namespace = "paths"
 incoming = "corpus/incoming"
 works    = "corpus/works"
 index    = "corpus/index.md"
+preview  = "corpus/preview"
 ```

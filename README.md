@@ -33,15 +33,26 @@ The model becomes an executor of your rules, not a creative collaborator.
 ## Quick Start
 
 ```bash
+# Put scripts on your PATH (from this checkout)
+export PATH="$PWD/scripts:$PATH"
+
 # List available switches
 sofia notator list
 
-# Run with switches
+# Compose a prompt (writes Echo JSON + sessions/)
 sofia notator run -process -preview
 
-# Manage manuscripts
-sofia-work init my-novel
-sofia-work status my-novel
+# Manage manuscripts (demo works ship in corpus/works/)
+sofia work status
+sofia work init my-novel
+```
+
+Private writing should live in a separate environment (e.g. `~/Documents/writing`) with:
+
+```bash
+export SOFIA_ROOT="$HOME/Documents/writing"
+export PATH="$HOME/Documents/sofia/scripts:$PATH"
+sofia work status
 ```
 
 ## Example
@@ -168,7 +179,16 @@ This enables:
 
 ## Installation
 
-See [BUILDING.md](BUILDING.md) for build instructions.
+```bash
+git clone https://github.com/solecize/sofia.git
+cd sofia
+export PATH="$PWD/scripts:$PATH"
+
+# Optional: menu bar helper (macOS)
+cd SofiaMonitor && ./build.sh --install
+```
+
+Requires: `bash`, `python3`, `git`. Optional: `fswatch` (watch daemon), `pandoc` (HTML/DOCX ingest).
 
 ## License
 
@@ -177,23 +197,23 @@ MIT
 ## Tools
 
 ### Notator
-Organize notes without adding prose. Moves files, applies naming conventions, tracks changes.
+Prompt composer for organizing notes without adding prose. Restored as `sofia notator` (`scripts/sofia-compose`).
 
 ### Sofia Work
-Manage manuscripts with chapter organization, versioning, and wiki sync.
+Manage manuscripts with chapter organization, versioning, and reference sync.
 
 ```bash
-sofia-work init origin-of-species
-sofia-work ingest origin-of-species manuscript.md
-sofia-work watch origin-of-species    # Auto-commit on save
-sofia-work checkin origin-of-species  # Version bump
+sofia work init origin-of-species
+sofia work ingest origin-of-species manuscript.md
+sofia work watch origin-of-species    # Auto-commit on save
+sofia work checkin origin-of-species  # Version bump
 ```
 
 ### Sofia Wiki
-Extract entities and track continuity across chapters.
+Extract entities and track continuity across chapters (`reference/` per work).
 
 See [documentation/](documentation/) for full details.
 
 ## Status
 
-MVP complete. Notator, Sofia Work, and Sofia Wiki are functional.
+Active development. Public repo holds **tooling + public-domain demo works only**. Keep private manuscripts in a separate `SOFIA_ROOT` environment — never push writing to this repository.

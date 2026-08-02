@@ -4,9 +4,14 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS_DIR/lib/sofia-root.sh"
+SCRIPT_DIR="$SOFIA_ROOT"
 WORKS_ROOT="corpus/works"
 INCOMING_ROOT="corpus/incoming"
+WIKI_ROOT="corpus/works"
+CANON_ROOT="corpus/works"
 DEMO_HIDDEN_FILE="$HOME/.sofia/demo-hidden"
 
 # Global flags
@@ -590,7 +595,7 @@ cmd_ingest() {
     # Git commit if enabled
     if [ "$NO_COMMIT" != "true" ] && [ "$DRY_RUN" != "true" ]; then
         cd "$SCRIPT_DIR"
-        git add "$WORKS_ROOT/$project/" "$WIKI_ROOT/$project/" "$CANON_ROOT/$project/" 2>/dev/null || true
+        git add "$WORKS_ROOT/$project/" 2>/dev/null || true
         git commit -m "work: ingest content into $project" 2>/dev/null || true
     fi
     
@@ -603,7 +608,7 @@ cmd_ingest() {
 sync_to_wiki() {
     local project="$1"
     local chapters_dir="$(get_chapters_dir "$project")"
-    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project"
+    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project/reference"
     local canon_dir="$SCRIPT_DIR/$CANON_ROOT/$project/chapters"
     
     echo ""
@@ -966,7 +971,7 @@ cmd_surface() {
     local work_dir="$(get_work_dir "$project")"
     local chapters_dir="$(get_chapters_dir "$project")"
     local orphans_file="$(get_orphans "$project")"
-    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project"
+    local wiki_dir="$SCRIPT_DIR/$WIKI_ROOT/$project/reference"
     local incoming_dir="$SCRIPT_DIR/$INCOMING_ROOT"
     local sofia_dir="$(get_sofia_dir "$project")"
     

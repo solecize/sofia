@@ -1,0 +1,13 @@
+{
+  "project": "wizard-of-oz",
+  "version": "0.1.0",
+  "created": "2026-08-02T05:57:50Z",
+  "modified": "2026-08-02T05:57:50Z",
+  "checkout": null,
+  "chapters": [],
+  "orphan_count": 0,
+  "title": "The Wonderful Wizard of Oz",
+  "phase": "demo",
+  "demo": true,
+  "source": "Project Gutenberg public domain"
+}

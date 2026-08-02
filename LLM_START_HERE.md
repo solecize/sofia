@@ -34,14 +34,16 @@ Your primary directive is **protecting the user's writing**, not efficiency. Slo
 
 ## Use Sofia CLI Tools
 
-Do not improvise raw commands. Use Sofia's tools:
+Do not improvise raw commands. Use Sofia's tools (`export PATH="$HOME/Documents/sofia/scripts:$PATH"`).
+
+For private manuscripts, set `SOFIA_ROOT` to the writing environment (e.g. `~/Documents/writing`) so tools never write into the public tooling repo.
 
 | Tool | Purpose |
 |------|--------|
-| `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout, watch) |
-| `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
-| `sofia-wiki` | Entity extraction and continuity tracking |
-| `sofia notator` | Note organization and processing |
+| `sofia work` / `sofia-work` | Manuscript management (init, ingest, surface, checkin, checkout, watch) |
+| `sofia refresh` / `sofia-refresh` | Regenerate work-level notebook and manuscript sections |
+| `sofia wiki` / `sofia-wiki` | Entity extraction and continuity tracking |
+| `sofia notator list\|run` | Prompt composer for note organization |
 | `sofia mx state` | Output current system state |
 | `sofia mx rules` | Output safety rules |
 

@@ -4,10 +4,13 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-WIKI_ROOT="notes/wiki"
-CANON_ROOT="notes/canon"
-INCOMING_ROOT="notes/incoming"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS_DIR/lib/sofia-root.sh"
+SCRIPT_DIR="$SOFIA_ROOT"
+WIKI_ROOT="corpus/works"
+CANON_ROOT="corpus/works"
+INCOMING_ROOT="corpus/incoming"
 
 # Global flags
 JSON_OUTPUT="false"
@@ -115,7 +118,7 @@ show_usage() {
 # Ensure project wiki exists
 ensure_wiki() {
     local project="$1"
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Creating wiki for project: $project"
@@ -173,7 +176,7 @@ cmd_ingest() {
     # Ensure wiki exists
     ensure_wiki "$project"
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     # Step 1: Split manuscript into chapters
@@ -267,7 +270,7 @@ cmd_status() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     if [ ! -d "$wiki_dir" ]; then
@@ -360,7 +363,7 @@ cmd_sync() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"
@@ -411,7 +414,7 @@ cmd_bulk_analyze() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     if [ ! -d "$wiki_dir" ]; then
@@ -499,7 +502,7 @@ cmd_bulk_extract() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     if [ ! -d "$wiki_dir" ]; then
@@ -593,7 +596,7 @@ cmd_update() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"
@@ -671,7 +674,7 @@ cmd_resolve() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     # Get conflict details
     local conflicts_json=$("$SCRIPT_DIR/scripts/sofia-wiki-db" list-conflicts "$wiki_dir")
@@ -738,7 +741,7 @@ cmd_loop() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     local canon_dir="$CANON_ROOT/$project/chapters"
     
     if [ ! -d "$wiki_dir" ]; then
@@ -827,7 +830,7 @@ cmd_entities() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"
@@ -844,7 +847,7 @@ import os
 import json
 import re
 
-wiki_dir = os.environ.get('WIKI_DIR', 'notes/wiki/error-correction')
+wiki_dir = os.environ.get('WIKI_DIR', 'corpus/works/error-correction/reference')
 entities = {}
 
 # Scan each entity category
@@ -941,7 +944,7 @@ cmd_validate() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"
@@ -955,7 +958,7 @@ import json
 import re
 from collections import defaultdict
 
-wiki_dir = os.environ.get('WIKI_DIR', 'notes/wiki/error-correction')
+wiki_dir = os.environ.get('WIKI_DIR', 'corpus/works/error-correction/reference')
 chapter_filter = os.environ.get('CHAPTER_FILTER', '')
 
 # Load entity registry
@@ -1257,7 +1260,7 @@ cmd_deprecate() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"
@@ -1342,7 +1345,7 @@ cmd_align() {
         exit 1
     fi
     
-    local wiki_dir="$WIKI_ROOT/$project"
+    local wiki_dir="$WIKI_ROOT/$project/reference"
     
     if [ ! -d "$wiki_dir" ]; then
         echo "Error: Wiki not found for project: $project"

@@ -6,7 +6,10 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS_DIR/lib/sofia-root.sh"
+SCRIPT_DIR="$SOFIA_ROOT"
 WORKS_ROOT="corpus/works"
 INCOMING_ROOT="corpus/incoming"
 TUTORIAL_CONTENT="corpus/incoming/tutorial"

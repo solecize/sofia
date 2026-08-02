@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""Sofia prompt composer — load library switches, resolve includes/groups, emit Echo JSON."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
+MAX_DEPTH = 8
+FRONTMATTER_RE = re.compile(r"^\s*\+\+\+\s*$", re.M)
+PROMPT_FENCE_RE = re.compile(
+    r"```prompt\s*\n(.*?)```", re.S | re.I
+)
+TOML_SIMPLE_RE = {
+    "str": re.compile(r'^([A-Za-z0-9_.-]+)\s*=\s*"(.*?)"\s*$'),
+    "bool": re.compile(r"^([A-Za-z0-9_.-]+)\s*=\s*(true|false)\s*$", re.I),
+    "int": re.compile(r"^([A-Za-z0-9_.-]+)\s*=\s*(-?\d+)\s*$"),
+    "arr": re.compile(r"^([A-Za-z0-9_.-]+)\s*=\s*\[(.*)\]\s*$"),
+}
+
+
+@dataclass
+class SwitchDef:
+    name: str
+    help: str = ""
+    tool: str = ""
+    path: str = ""
+    prompt: str = ""
+    switch_id: str = ""
+    exclusive_group: str = ""
+    includes: List[str] = field(default_factory=list)
+    aliases: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
+    is_default_variant: bool = False
+
+
+@dataclass
+class Registry:
+    switches: Dict[str, SwitchDef] = field(default_factory=dict)
+    aliases: Dict[str, str] = field(default_factory=dict)
+    vars: Dict[str, str] = field(default_factory=dict)
+    groups: Dict[str, List[str]] = field(default_factory=dict)
+    defaults: Dict[str, str] = field(default_factory=dict)
+
+
+def sofia_root() -> Path:
+    env = os.environ.get("SOFIA_ROOT")
+    if env:
+        return Path(env).resolve()
+    # Prefer cwd if it looks like an environment; else tooling root (parent of scripts/)
+    cwd = Path.cwd()
+    if (cwd / "corpus" / "works").is_dir() or (cwd / "corpus" / "incoming").is_dir():
+        return cwd.resolve()
+    return Path(__file__).resolve().parent.parent
+
+
+def tooling_root() -> Path:
+    env = os.environ.get("TOOLING_ROOT")
+    if env:
+        return Path(env).resolve()
+    return Path(__file__).resolve().parent.parent
+
+
+def parse_frontmatter(text: str) -> Tuple[Dict, str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() not in ("+++", "---"):
+        # allow leading title then +++
+        idx = None
+        for i, line in enumerate(lines[:40]):
+            if line.strip() in ("+++", "---"):
+                idx = i
+                break
+        if idx is None:
+            return {}, text
+        delim = lines[idx].strip()
+        end = None
+        for j in range(idx + 1, len(lines)):
+            if lines[j].strip() == delim:
+                end = j
+                break
+        if end is None:
+            return {}, text
+        fm_lines = lines[idx + 1 : end]
+        body = "\n".join(lines[end + 1 :])
+    else:
+        delim = lines[0].strip()
+        end = None
+        for j in range(1, len(lines)):
+            if lines[j].strip() == delim:
+                end = j
+                break
+        if end is None:
+            return {}, text
+        fm_lines = lines[1:end]
+        body = "\n".join(lines[end + 1 :])
+
+    data: Dict = {}
+    current_table = None
+    for raw in fm_lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current_table = line[1:-1].strip()
+            continue
+        m = TOML_SIMPLE_RE["str"].match(line)
+        if m:
+            data[m.group(1)] = m.group(2)
+            continue
+        m = TOML_SIMPLE_RE["bool"].match(line)
+        if m:
+            data[m.group(1)] = m.group(2).lower() == "true"
+            continue
+        m = TOML_SIMPLE_RE["int"].match(line)
+        if m:
+            data[m.group(1)] = int(m.group(2))
+            continue
+        m = TOML_SIMPLE_RE["arr"].match(line)
+        if m:
+            inner = m.group(2).strip()
+            items = []
+            if inner:
+                for part in re.findall(r'"([^"]*)"|\'([^\']*)\'|([^,\s]+)', inner):
+                    items.append(next(x for x in part if x))
+            data[m.group(1)] = items
+            continue
+    return data, body
+
+
+def extract_prompt(body: str) -> str:
+    m = PROMPT_FENCE_RE.search(body)
+    if m:
+        return m.group(1).strip()
+    # fallback: strip leftover fences
+    return body.strip()
+
+
+def parse_toml_block(body: str) -> Dict[str, str]:
+    """Parse simple key=value pairs from ```toml fenced blocks (vars files)."""
+    out: Dict[str, str] = {}
+    for m in re.finditer(r"```toml\s*\n(.*?)```", body, re.S | re.I):
+        for line in m.group(1).splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("["):
+                continue
+            sm = TOML_SIMPLE_RE["str"].match(line)
+            if sm:
+                out[sm.group(1)] = sm.group(2)
+                continue
+            sm = TOML_SIMPLE_RE["bool"].match(line)
+            if sm:
+                out[sm.group(1)] = "true" if sm.group(2).lower() == "true" else "false"
+                continue
+            # bare: key = value without quotes
+            bm = re.match(r"^([A-Za-z0-9_.-]+)\s*=\s*(.+)$", line)
+            if bm:
+                out[bm.group(1)] = bm.group(2).strip().strip('"')
+    return out
+
+
+def load_registry(root: Path) -> Registry:
+    reg = Registry()
+    library = root / "library"
+    if not library.is_dir():
+        # private env may not ship library — fall back to tooling
+        library = tooling_root() / "library"
+
+    for path in sorted(library.rglob("*.md")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        meta, body = parse_frontmatter(text)
+        ftype = meta.get("type", "")
+
+        if ftype == "switch" or "switch" in meta:
+            name = meta.get("switch") or meta.get("name")
+            if not name:
+                continue
+            if not str(name).startswith("-"):
+                name = f"-{name}"
+            sw = SwitchDef(
+                name=str(name),
+                help=str(meta.get("help", "")),
+                tool=str(meta.get("tool", "")),
+                path=str(path.relative_to(library.parent) if library.parent in path.parents else path),
+                prompt=extract_prompt(body),
+                switch_id=str(meta.get("id", "")),
+                exclusive_group=str(meta.get("exclusive_group", "")),
+                includes=[str(x) if str(x).startswith("-") else f"-{x}" for x in meta.get("includes", [])]
+                if isinstance(meta.get("includes"), list)
+                else [],
+                aliases=[str(x) if str(x).startswith("-") else f"-{x}" for x in meta.get("aliases", [])]
+                if isinstance(meta.get("aliases"), list)
+                else [],
+                tags=list(meta.get("tags", [])) if isinstance(meta.get("tags"), list) else [],
+                is_default_variant=bool(meta.get("default", False)),
+            )
+            # fix path to be library-relative display
+            try:
+                sw.path = str(path.relative_to(tooling_root()))
+            except ValueError:
+                sw.path = str(path)
+            reg.switches[sw.name] = sw
+            for a in sw.aliases:
+                reg.aliases[a] = sw.name
+            if sw.exclusive_group:
+                reg.groups.setdefault(sw.exclusive_group, [])
+                if sw.name not in reg.groups[sw.exclusive_group]:
+                    reg.groups[sw.exclusive_group].append(sw.name)
+                if sw.is_default_variant:
+                    reg.defaults[sw.exclusive_group] = sw.name
+
+        elif ftype == "vars" or meta.get("namespace"):
+            ns = str(meta.get("namespace", path.stem))
+            for k, v in parse_toml_block(body).items():
+                reg.vars[f"{ns}.{k}"] = v
+
+        elif ftype == "defaults":
+            # parse [groups.X] default = "-flag" from toml blocks / body
+            for m in re.finditer(
+                r"\[groups\.([^\]]+)\]\s*default\s*=\s*\"([^\"]+)\"",
+                body,
+                re.S,
+            ):
+                reg.defaults[m.group(1)] = m.group(2)
+
+    # Also load config/defaults.md
+    for cfg in (root / "config" / "defaults.md", tooling_root() / "config" / "defaults.md"):
+        if cfg.is_file():
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+            _, body = parse_frontmatter(text)
+            for m in re.finditer(
+                r"\[groups\.([^\]]+)\].*?default\s*=\s*\"([^\"]+)\"",
+                body,
+                re.S,
+            ):
+                reg.defaults.setdefault(m.group(1), m.group(2))
+            break
+
+    # core instruction as synthetic -core if file exists
+    core = library / "shared" / "core-instruction.md"
+    if core.is_file() and "-core" not in reg.switches:
+        text = core.read_text(encoding="utf-8", errors="replace")
+        meta, body = parse_frontmatter(text)
+        reg.switches["-core"] = SwitchDef(
+            name="-core",
+            help="Core no-creative-insertion instruction",
+            tool="shared",
+            path="library/shared/core-instruction.md",
+            prompt=extract_prompt(body) or body.strip(),
+            switch_id=str(meta.get("id", "shared.core")),
+        )
+
+    return reg
+
+
+def canonicalize(reg: Registry, name: str) -> str:
+    if not name.startswith("-"):
+        name = f"-{name}"
+    return reg.aliases.get(name, name)
+
+
+def expand_includes(
+    reg: Registry, requested: List[str]
+) -> Tuple[List[str], List[str], List[str], Dict[str, Dict[str, str]]]:
+    warnings: List[str] = []
+    included: List[str] = []
+    resolved: List[str] = []
+    seen: Set[str] = set()
+    selected_groups: Dict[str, Dict[str, str]] = {}
+
+    def dfs(name: str, depth: int, source: str) -> None:
+        if depth > MAX_DEPTH:
+            warnings.append(f"max include depth exceeded at {name}")
+            return
+        canon = canonicalize(reg, name)
+        if canon not in reg.switches:
+            warnings.append(f"unknown switch: {canon}")
+            return
+        sw = reg.switches[canon]
+        if sw.exclusive_group:
+            group = sw.exclusive_group
+            if group in selected_groups and selected_groups[group]["chosen"] != canon:
+                # precedence: first CLI wins; later includes lose
+                warnings.append(
+                    f"exclusive group {group}: keeping {selected_groups[group]['chosen']}, skipping {canon}"
+                )
+                return
+            if group not in selected_groups:
+                selected_groups[group] = {"chosen": canon, "source": source}
+        if canon in seen:
+            return
+        seen.add(canon)
+        for inc in sw.includes:
+            dfs(inc, depth + 1, "tool")
+            if canonicalize(reg, inc) not in included and canonicalize(reg, inc) != canon:
+                included.append(canonicalize(reg, inc))
+        resolved.append(canon)
+
+    for req in requested:
+        dfs(req, 0, "cli")
+
+    # Apply defaults for groups not chosen
+    for group, default in reg.defaults.items():
+        if group not in selected_groups and default in reg.switches:
+            selected_groups[group] = {"chosen": default, "source": "defaults"}
+            if default not in seen:
+                dfs(default, 0, "defaults")
+
+    # Stable unique order
+    out: List[str] = []
+    for n in resolved:
+        if n not in out:
+            out.append(n)
+    return out, included, warnings, selected_groups
+
+
+def substitute_vars(text: str, variables: Dict[str, str]) -> str:
+    def repl(m: re.Match) -> str:
+        key = m.group(1)
+        return variables.get(key, m.group(0))
+
+    return re.sub(r"\{([A-Za-z0-9_.-]+)\}", repl, text)
+
+
+def cmd_list(reg: Registry, tool: Optional[str]) -> int:
+    rows = []
+    for name in sorted(reg.switches):
+        sw = reg.switches[name]
+        if tool and sw.tool and sw.tool != tool and tool != "shared":
+            if sw.tool != tool:
+                # show shared + tool
+                if sw.tool not in (tool, "shared", ""):
+                    continue
+        rows.append((name, sw.help or "", sw.path))
+    if not rows:
+        print("No switches found.", file=sys.stderr)
+        return 1
+    print(f"{'SWITCH':<20} {'HELP':<60} SOURCE")
+    print(f"{'------':<20} {'----':<60} ------")
+    for name, help_, path in rows:
+        print(f"{name:<20} {help_[:60]:<60} {path}")
+    return 0
+
+
+def write_session(root: Path, payload: dict) -> Path:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
+    sess = root / "sessions" / ts
+    sess.mkdir(parents=True, exist_ok=True)
+    path = sess / "manifest.json"
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def cmd_run(reg: Registry, root: Path, tool: str, switches: List[str], preview: bool) -> int:
+    if preview and "-preview" not in switches and "preview" not in " ".join(switches):
+        switches = list(switches) + ["-preview"]
+    resolved, included, warnings, selected = expand_includes(reg, switches)
+    prompts = []
+    source_files = {}
+    for name in resolved:
+        sw = reg.switches[name]
+        prompts.append(substitute_vars(sw.prompt, reg.vars))
+        source_files[name] = sw.path
+
+    ui = f"Organize notes: {', '.join(resolved)}"
+    payload = {
+        "ui": ui,
+        "ask": {"confirm": {"default": True, "options": ["continue", "revise", "cancel"]}},
+        "data": {
+            "tool": tool,
+            "requestedSwitches": [canonicalize(reg, s) for s in switches],
+            "includedSwitches": included,
+            "resolvedSwitches": resolved,
+            "variables": reg.vars,
+            "composedPrompts": prompts,
+            "sourceFiles": source_files,
+            "selectedGroups": selected,
+            "events": [],
+            "git": {
+                "policy": "auto" if selected.get("commit-policy", {}).get("chosen") == "-git" else "none",
+                "source": selected.get("commit-policy", {}).get("source", "defaults"),
+            },
+            "warnings": warnings,
+        },
+        "next": {"cmd": f"{tool}.run", "args": {"apply": False}},
+    }
+    session_path = write_session(root, payload)
+    print(json.dumps(payload, indent=2))
+    print(f"\n# session: {session_path}", file=sys.stderr)
+
+    # Also print composed prompt text for easy piping
+    print("\n---\n# Composed Prompt\n", file=sys.stderr)
+    for i, p in enumerate(prompts):
+        print(f"\n## [{resolved[i]}]\n\n{p}\n", file=sys.stderr)
+    return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(prog="sofia-compose", description="Sofia prompt composer")
+    parser.add_argument("--root", help="Sofia environment root (default: SOFIA_ROOT or cwd/tooling)")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_list = sub.add_parser("list", help="List switches")
+    p_list.add_argument("--tool", default="notator")
+
+    p_run = sub.add_parser("run", help="Compose prompt from switches")
+    p_run.add_argument("--tool", default="notator")
+    p_run.add_argument(
+        "switches",
+        nargs="+",
+        help="Switches e.g. -process -preview (use -- before switches if needed)",
+    )
+
+    args = parser.parse_args(argv)
+    if args.root:
+        os.environ["SOFIA_ROOT"] = args.root
+    root = sofia_root()
+    # Library always from tooling if missing locally
+    if not (root / "library").is_dir():
+        os.environ.setdefault("TOOLING_ROOT", str(tooling_root()))
+
+    reg = load_registry(root if (root / "library").is_dir() else tooling_root())
+
+    if args.cmd == "list":
+        return cmd_list(reg, args.tool)
+    if args.cmd == "run":
+        return cmd_run(reg, root, args.tool, args.switches, preview="-preview" in args.switches)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

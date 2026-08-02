@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Sofia unified CLI dispatcher
+# Usage:
+#   sofia notator list
+#   sofia notator run -process -preview
+#   sofia work status
+#   sofia wiki ...
+#   sofia refresh <work>
+#   sofia dashboard
+#   sofia mx status
+#
+# Private writing environments: export SOFIA_ROOT=/path/to/writing
+
+set -euo pipefail
+
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS/lib/sofia-root.sh"
+
+usage() {
+  cat <<EOF
+Usage: sofia <command> [args...]
+
+Commands:
+  notator list              List available switches
+  notator run <switches>    Compose prompt (Echo JSON + session)
+  work <args>               Manuscript management (sofia-work)
+  wiki <args>               Entity / reference tools (sofia-wiki)
+  refresh <args>            Regenerate notebook/manuscript sections
+  dashboard [args]          Generate corpus/index.md
+  mx <args>                 Model Experience helpers
+  tutorial [args]           Interactive tutorial
+  watch <args>              Auto-commit daemon
+  compose <args>            Raw composer (sofia-compose)
+
+Environment:
+  SOFIA_ROOT   Path to environment (writing or tooling). Default: cwd if it
+               contains corpus/, else the tooling checkout.
+  TOOLING_ROOT Path to public sofia tooling (library/scripts). Default: this tree.
+
+Current SOFIA_ROOT=$SOFIA_ROOT
+EOF
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  ""|-h|--help|help)
+    usage
+    ;;
+  notator)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      list)
+        exec "$SCRIPTS/sofia-compose" list --tool notator "$@"
+        ;;
+      run)
+        exec "$SCRIPTS/sofia-compose" run --tool notator -- "$@"
+        ;;
+      *)
+        echo "Usage: sofia notator list|run [switches...]" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+  work)      exec "$SCRIPTS/sofia-work" "$@" ;;
+  wiki)      exec "$SCRIPTS/sofia-wiki" "$@" ;;
+  refresh)   exec "$SCRIPTS/sofia-refresh" "$@" ;;
+  dashboard) exec "$SCRIPTS/sofia-dashboard" "$@" ;;
+  mx)        exec "$SCRIPTS/sofia-mx" "$@" ;;
+  tutorial)  exec "$SCRIPTS/sofia-tutorial" "$@" ;;
+  watch)     exec "$SCRIPTS/sofia-watch" "$@" ;;
+  compose)   exec "$SCRIPTS/sofia-compose" "$@" ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

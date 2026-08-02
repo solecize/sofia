@@ -53,3 +53,13 @@ notes/**/*.mp4
 !SofiaMonitor/**/*.svg
 !SofiaMonitor/**/*.icns
 SofiaMonitor/SofiaMonitor.app/
+SofiaMonitor/.build/
+SofiaMonitor/SofiaMonitorApp
+SofiaMonitor/resources/*.psd
+corpus/works/*
+!corpus/works/.gitkeep
+!corpus/works/christmas-carol/
+!corpus/works/frankenstein/
+!corpus/works/origin-of-species/
+!corpus/works/wizard-of-oz/
+corpus/preview/

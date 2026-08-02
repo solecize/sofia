@@ -6,6 +6,17 @@ Development documentation for Sofia. This file preserves context for future AI s
 
 ---
 
+## Two Environments
+
+| Environment | Path | Git | Contents |
+|-------------|------|-----|----------|
+| Tooling + demos | `~/Documents/sofia` | `solecize/sofia` (`main`/`public`) | scripts, library, Monitor, public-domain demos |
+| Private writing | `~/Documents/writing` | local-only / private remote | `error-correction` and other private works |
+
+Set `SOFIA_ROOT` when invoking CLI against the writing environment. Never push private works to `solecize/sofia`.
+
+Cold archives (not live envs): `~/Desktop/book-notes-export`, accented `~/Documents/sofía`, nested writelab clone (origin disabled).
+
 ## Canonical Work Structure
 
 Each project in `corpus/works/<project>/` follows this structure:

@@ -2,7 +2,10 @@
 # sofia-ingest: Split a manuscript into chapters and prepare for entity extraction
 # Usage: sofia-ingest <manuscript.txt> --output <dir>
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS_DIR/lib/sofia-root.sh"
+SCRIPT_DIR="$SOFIA_ROOT"
 
 show_usage() {
     echo "Usage: sofia-ingest <manuscript.txt> [options]"

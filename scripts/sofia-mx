@@ -6,7 +6,10 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/sofia-root.sh
+source "$SCRIPTS_DIR/lib/sofia-root.sh"
+SCRIPT_DIR="$SOFIA_ROOT"
 MX_DIR="$SCRIPT_DIR/documentation/mx"
 STATE_FILE="$HOME/.sofia/state.json"
 
